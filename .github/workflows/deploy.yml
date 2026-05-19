@@ -1,0 +1,25 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /var/www/options-moex
+            git pull origin master
+            sudo cp nginx.conf /etc/nginx/sites-available/options-moex
+            sudo ln -sf /etc/nginx/sites-available/options-moex /etc/nginx/sites-enabled/options-moex
+            sudo nginx -t && sudo systemctl reload nginx
+            echo "✅ Deployed successfully"
