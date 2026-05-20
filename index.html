@@ -305,9 +305,9 @@ function fmtPct(v) {
   return n.toFixed(1) + '%';
 }
 
-/* ─── fetch options for ONE asset (smart stop) ─── */
+/* ─── fetch options for ONE asset, calls onPage after each page with matches ─── */
 
-async function fetchAssetOptions(asset) {
+async function fetchAssetOptions(asset, onPage) {
   let secMap = {};
   let secCols, mdCols;
   let start = 0;
@@ -328,7 +328,6 @@ async function fetchAssetOptions(asset) {
     const secRows = json.securities.data;
     if (!secRows.length) break;
 
-    // Build md map for this page
     const mdMap = {};
     json.marketdata.data.forEach(r => {
       const o = {};
@@ -347,8 +346,9 @@ async function fetchAssetOptions(asset) {
       }
     });
 
-    // Stop if we've found records before and now hit empty pages —
-    // means we've passed this asset in the sorted order
+    // After each page that has matches — update UI immediately
+    if (matched > 0 && onPage) onPage(Object.values(secMap), false);
+
     if (matched === 0) {
       if (foundAny) emptyStreak++;
       if (emptyStreak >= 2) break;
@@ -361,7 +361,9 @@ async function fetchAssetOptions(asset) {
     if (start > 200000) break;
   }
 
-  return Object.values(secMap);
+  const result = Object.values(secMap);
+  if (onPage) onPage(result, true); // final call
+  return result;
 }
 
 /* ─── UI flow ─── */
@@ -380,35 +382,38 @@ async function selectAsset(asset) {
   setStatus(`Загрузка ${asset}…`, 'spin');
   setContent(`<div class="state"><div class="spinner"></div><div class="state-txt">Загрузка опционов ${asset}…</div></div>`);
 
-  try {
-    const options = await fetchAssetOptions(asset);
+  let firstRender = true;
 
-    if (!options.length) {
-      setStatus('Не найдено', 'err');
-      setContent(`<div class="state"><div class="state-err">Опционы для «${asset}» не найдены</div></div>`);
-      return;
-    }
-
-    // Get unique expiry dates
+  function handlePage(options, done) {
+    // Update expiry selector
     const expiries = [...new Set(options.map(o => o.EXPIRATIONDATE).filter(Boolean))].sort();
-
-    // Populate expiry selector
     const sel = document.getElementById('selExpiry');
+    const prev = sel.value;
     sel.innerHTML = expiries.map(d => `<option value="${d}">${fmtDate(d)}</option>`).join('');
+    // Restore previous selection if still available, else keep first
+    if (prev && expiries.includes(prev)) sel.value = prev;
     sel.disabled = false;
     document.getElementById('btnRefresh').disabled = false;
 
-    // Cache all expiry data
+    // Cache by expiry
     expiries.forEach(exp => {
-      const key = `${asset}|${exp}`;
-      cache[key] = options.filter(o => o.EXPIRATIONDATE === exp);
+      cache[`${asset}|${exp}`] = options.filter(o => o.EXPIRATIONDATE === exp);
     });
 
-    setStatus(`${asset} — ${options.length} опционов`, 'ok');
+    const expiry = sel.value;
+    const count = options.length;
+    const label = done ? `${asset} — ${count} опционов` : `${asset} — загрузка… (${count})`;
+    setStatus(label, done ? 'ok' : 'spin');
 
-    // Auto-render first expiry
-    onExpiryChange();
+    // Render table on first page and on done
+    if (firstRender || done) {
+      firstRender = false;
+      if (expiry) renderTable(cache[`${asset}|${expiry}`] || []);
+    }
+  }
 
+  try {
+    await fetchAssetOptions(asset, handlePage);
   } catch(e) {
     setStatus('Ошибка', 'err');
     setContent(`<div class="state"><div class="state-err">Ошибка: ${e.message}</div></div>`);
