@@ -32,14 +32,13 @@
 
     body { display: flex; flex-direction: column; }
 
-    /* ─── HEADER ─── */
     .hdr {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       padding: 9px 18px;
       display: flex;
       align-items: center;
-      gap: 18px;
+      gap: 14px;
       flex-shrink: 0;
       flex-wrap: wrap;
     }
@@ -53,12 +52,29 @@
     }
     .logo small { color: var(--muted); font-weight: 400; letter-spacing: 0; font-size: 11px; }
 
-    .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .presets { display: flex; gap: 5px; flex-wrap: wrap; }
 
-    .ctrl {
+    .preset-btn {
+      background: var(--card);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 3px;
+      font-family: inherit;
+      font-size: 11px;
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
+    }
+    .preset-btn:hover,
+    .preset-btn.active {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .search-group {
       display: flex;
-      align-items: center;
       gap: 5px;
+      align-items: center;
     }
 
     .ctrl-lbl {
@@ -67,6 +83,20 @@
       text-transform: uppercase;
       letter-spacing: .8px;
     }
+
+    input[type=text] {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 5px 9px;
+      border-radius: 3px;
+      font-family: inherit;
+      font-size: 12px;
+      width: 80px;
+      text-transform: uppercase;
+    }
+    input[type=text]::placeholder { color: var(--muted); text-transform: none; }
+    input[type=text]:focus { outline: none; border-color: var(--accent); }
 
     select, button {
       background: var(--card);
@@ -80,7 +110,13 @@
     }
     select:focus, button:focus { outline: none; border-color: var(--accent); }
     button:hover { background: var(--border); }
-    button:disabled { opacity: .5; cursor: default; }
+    button:disabled { opacity: .4; cursor: default; }
+
+    .expiry-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
 
     .status-bar {
       margin-left: auto;
@@ -92,22 +128,15 @@
       white-space: nowrap;
     }
 
-    .dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      background: var(--muted);
-      flex-shrink: 0;
-    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
     .dot.ok   { background: #4ade80; animation: blink 3s infinite; }
     .dot.err  { background: var(--put); }
     .dot.spin { background: var(--accent); animation: blink .7s infinite; }
 
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
 
-    /* ─── CONTENT AREA ─── */
     .content { flex: 1; overflow: auto; position: relative; }
 
-    /* ─── CENTER STATES ─── */
     .state {
       position: absolute; inset: 0;
       display: flex; flex-direction: column;
@@ -124,34 +153,21 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .state-txt  { color: var(--muted); }
-    .state-sub  { color: var(--accent); font-size: 11px; }
-    .state-err  { color: var(--put); }
+    .state-txt { color: var(--muted); }
+    .state-err { color: var(--put); }
 
-    /* ─── TABLE ─── */
     table { width: 100%; border-collapse: collapse; min-width: 860px; }
-
     thead { position: sticky; top: 0; z-index: 5; }
 
-    /* group header row */
-    .gh th {
-      padding: 5px 10px;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      text-align: center;
-    }
+    .gh th { padding: 5px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; text-align: center; }
     .gh .ch { background: rgba(62,199,158,.18); color: var(--call); }
     .gh .ph { background: rgba(224,85,85,.18);  color: var(--put); }
     .gh .sh { background: var(--card); color: var(--accent); }
 
-    /* column header row */
     .colh th {
       padding: 4px 8px;
-      font-size: 10px;
-      font-weight: 400;
-      text-transform: uppercase;
-      letter-spacing: .5px;
+      font-size: 10px; font-weight: 400;
+      text-transform: uppercase; letter-spacing: .5px;
       border-bottom: 1px solid var(--border);
       text-align: right;
     }
@@ -159,41 +175,28 @@
     .colh .pc { background: rgba(224,85,85,.09);  color: var(--put); }
     .colh .sc { background: var(--card); color: var(--accent); text-align: center; }
 
-    /* data rows */
     tbody tr { border-bottom: 1px solid rgba(255,255,255,.02); }
     tbody tr:hover td { filter: brightness(1.7); }
 
-    td {
-      padding: 3px 8px;
-      text-align: right;
-      white-space: nowrap;
-    }
-
+    td { padding: 3px 8px; text-align: right; white-space: nowrap; }
     td.cc { background: var(--call-bg); }
     td.pc { background: var(--put-bg); }
     td.sc {
-      background: var(--card);
-      color: var(--accent);
-      font-weight: 700;
+      background: var(--card); color: var(--accent); font-weight: 700;
       text-align: center;
-      border-left: 1px solid var(--border);
-      border-right: 1px solid var(--border);
+      border-left: 1px solid var(--border); border-right: 1px solid var(--border);
     }
 
-    /* ATM row */
-    tr.atm td            { border-top: 1px solid var(--atm) !important;
-                           border-bottom: 1px solid var(--atm) !important; }
-    tr.atm td.sc         { background: rgba(91,156,246,.12); }
+    tr.atm td   { border-top: 1px solid var(--atm) !important; border-bottom: 1px solid var(--atm) !important; }
+    tr.atm td.sc { background: rgba(91,156,246,.12); }
 
-    /* value colours */
-    .vb  { color: #4ade80; } /* bid  */
-    .va  { color: #f87171; } /* ask  */
-    .viv { color: #fb923c; } /* IV   */
-    .vth { color: #94a3b8; } /* теор */
-    .voi { color: var(--muted); } /* OI  */
-    .v0  { color: var(--border); } /* empty */
+    .vb  { color: #4ade80; }
+    .va  { color: #f87171; }
+    .viv { color: #fb923c; }
+    .vth { color: #94a3b8; }
+    .voi { color: var(--muted); }
+    .v0  { color: var(--border); }
 
-    /* ─── FOOTER ─── */
     .ftr {
       background: var(--surface);
       border-top: 1px solid var(--border);
@@ -201,49 +204,53 @@
       display: flex; gap: 18px; flex-wrap: wrap;
       flex-shrink: 0;
     }
-    .leg {
-      display: flex; align-items: center; gap: 4px;
-      font-size: 10px; color: var(--muted);
-    }
+    .leg { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
   </style>
 </head>
 <body>
 
-<!-- HEADER -->
 <div class="hdr">
   <div class="logo">MOEX <small>/ Options Chain</small></div>
 
-  <div class="controls">
-    <div class="ctrl">
-      <span class="ctrl-lbl">Актив</span>
-      <select id="selAsset" onchange="onAssetChange()">
-        <option>Загрузка…</option>
-      </select>
-    </div>
-    <div class="ctrl">
-      <span class="ctrl-lbl">Экспирация</span>
-      <select id="selExpiry" onchange="renderTable()">
-        <option>—</option>
-      </select>
-    </div>
-    <button id="btnRefresh" onclick="loadAll()">↻ Обновить</button>
+  <!-- быстрые кнопки -->
+  <div class="presets" id="presets">
+    <span class="ctrl-lbl" style="align-self:center">Актив:</span>
+    <button class="preset-btn" onclick="selectAsset('Si')">Si</button>
+    <button class="preset-btn" onclick="selectAsset('Ri')">Ri</button>
+    <button class="preset-btn" onclick="selectAsset('Eu')">Eu</button>
+    <button class="preset-btn" onclick="selectAsset('GAZP')">GAZP</button>
+    <button class="preset-btn" onclick="selectAsset('SBER')">SBER</button>
+    <button class="preset-btn" onclick="selectAsset('LKOH')">LKOH</button>
+  </div>
+
+  <!-- ввод своего кода -->
+  <div class="search-group">
+    <input type="text" id="assetInput" placeholder="свой код…" maxlength="10"
+      onkeydown="if(event.key==='Enter') selectAsset(this.value.trim().toUpperCase())">
+    <button onclick="selectAsset(document.getElementById('assetInput').value.trim().toUpperCase())">→</button>
+  </div>
+
+  <!-- экспирация -->
+  <div class="expiry-group">
+    <span class="ctrl-lbl">Экспирация:</span>
+    <select id="selExpiry" onchange="onExpiryChange()" disabled>
+      <option>—</option>
+    </select>
+    <button id="btnRefresh" onclick="reloadCurrent()" disabled title="Обновить котировки">↻</button>
   </div>
 
   <div class="status-bar">
-    <div class="dot spin" id="dot"></div>
-    <span id="statusMsg">Инициализация…</span>
+    <div class="dot" id="dot"></div>
+    <span id="statusMsg">Выберите актив</span>
   </div>
 </div>
 
-<!-- CONTENT -->
 <div class="content" id="content">
   <div class="state">
-    <div class="spinner"></div>
-    <div class="state-txt">Подключение к MOEX ISS…</div>
+    <div class="state-txt">Выберите базовый актив</div>
   </div>
 </div>
 
-<!-- FOOTER / LEGEND -->
 <div class="ftr">
   <div class="leg"><span class="vb">■</span> Bid — лучший покупатель</div>
   <div class="leg"><span class="va">■</span> Ask — лучший продавец</div>
@@ -256,9 +263,11 @@
 <script>
 const API = 'https://iss.moex.com/iss/engines/futures/markets/options/securities.json';
 
-let cache = [];   // all loaded options
+let currentAsset = null;
+// cache: "ASSET|EXPIRY" -> options array
+const cache = {};
 
-/* ─── helpers ──────────────────────────────────────────────── */
+/* ─── utils ─── */
 
 function setStatus(msg, state) {
   document.getElementById('statusMsg').textContent = msg;
@@ -271,7 +280,7 @@ function setContent(html) {
 
 function assetOf(o) {
   if (o.ASSETCODE && o.ASSETCODE.trim()) return o.ASSETCODE.trim();
-  const m = (o.SHORTNAME || o.SECID || '').match(/^([A-Za-zА-Яа-яЁё0-9]+)/u);
+  const m = (o.SECID || '').match(/^([A-Za-z]+)/);
   return m ? m[1] : 'OTHER';
 }
 
@@ -296,117 +305,140 @@ function fmtPct(v) {
   return n.toFixed(1) + '%';
 }
 
-/* ─── fetch (with pagination) ──────────────────────────────── */
+/* ─── fetch options for ONE asset (smart stop) ─── */
 
-async function loadAll() {
-  const btn = document.getElementById('btnRefresh');
-  btn.disabled = true;
-  setStatus('Загрузка…', 'spin');
-
-  setContent(`
-    <div class="state">
-      <div class="spinner"></div>
-      <div class="state-txt">Загрузка опционов с MOEX ISS…</div>
-      <div class="state-sub" id="prog"></div>
-    </div>`);
-
-  try {
-    cache = await fetchAll();
-    setStatus(`Опционов: ${cache.length}`, 'ok');
-    buildAssetSel();
-  } catch (e) {
-    setStatus('Ошибка', 'err');
-    setContent(`
-      <div class="state">
-        <div class="state-err">Ошибка: ${e.message}</div>
-        <div class="state-txt" style="font-size:11px">
-          Проверьте соединение и нажмите «↻ Обновить»
-        </div>
-      </div>`);
-  }
-
-  btn.disabled = false;
-}
-
-async function fetchAll() {
-  let map = {};
+async function fetchAssetOptions(asset) {
+  let secMap = {};
   let secCols, mdCols;
-  let start = 0, page = 0;
+  let start = 0;
+  let foundAny = false;
+  let emptyStreak = 0;
 
   while (true) {
-    page++;
-    const prog = document.getElementById('prog');
-    if (prog) prog.textContent = `Страница ${page} (записей: ${start})…`;
-
-    const r = await fetch(`${API}?iss.meta=off&start=${start}`);
-    if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
-    const json = await r.json();
+    const url = `${API}?iss.meta=off&q=${encodeURIComponent(asset)}&start=${start}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const json = await resp.json();
 
     if (!secCols) {
       secCols = json.securities.columns;
       mdCols   = json.marketdata.columns;
     }
 
-    const rows = json.securities.data;
-    if (!rows.length) break;
+    const secRows = json.securities.data;
+    if (!secRows.length) break;
 
-    rows.forEach(r => {
-      const o = {};
-      secCols.forEach((c, i) => o[c] = r[i]);
-      map[o.SECID] = o;
-    });
-
+    // Build md map for this page
+    const mdMap = {};
     json.marketdata.data.forEach(r => {
-      const m = {};
-      mdCols.forEach((c, i) => m[c] = r[i]);
-      if (map[m.SECID]) Object.assign(map[m.SECID], m);
+      const o = {};
+      mdCols.forEach((c, i) => o[c] = r[i]);
+      mdMap[o.SECID] = o;
     });
 
-    if (rows.length < 100) break;
+    let matched = 0;
+    secRows.forEach(r => {
+      const sec = {};
+      secCols.forEach((c, i) => sec[c] = r[i]);
+      if (assetOf(sec) === asset) {
+        secMap[sec.SECID] = { ...sec, ...(mdMap[sec.SECID] || {}) };
+        matched++;
+        foundAny = true;
+      }
+    });
+
+    // Stop if we've found records before and now hit empty pages —
+    // means we've passed this asset in the sorted order
+    if (matched === 0) {
+      if (foundAny) emptyStreak++;
+      if (emptyStreak >= 2) break;
+    } else {
+      emptyStreak = 0;
+    }
+
+    if (secRows.length < 100) break;
     start += 100;
-    if (start > 200000) break;   // safety cap
+    if (start > 200000) break;
   }
 
-  return Object.values(map);
+  return Object.values(secMap);
 }
 
-/* ─── selectors ────────────────────────────────────────────── */
+/* ─── UI flow ─── */
 
-function buildAssetSel() {
-  const assets = [...new Set(cache.map(assetOf))].sort();
-  const sel = document.getElementById('selAsset');
-  sel.innerHTML = assets.map(a => `<option value="${a}">${a}</option>`).join('');
-  onAssetChange();
+async function selectAsset(asset) {
+  if (!asset) return;
+  currentAsset = asset;
+
+  // highlight active preset
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent === asset);
+  });
+
+  document.getElementById('selExpiry').disabled = true;
+  document.getElementById('btnRefresh').disabled = true;
+  setStatus(`Загрузка ${asset}…`, 'spin');
+  setContent(`<div class="state"><div class="spinner"></div><div class="state-txt">Загрузка опционов ${asset}…</div></div>`);
+
+  try {
+    const options = await fetchAssetOptions(asset);
+
+    if (!options.length) {
+      setStatus('Не найдено', 'err');
+      setContent(`<div class="state"><div class="state-err">Опционы для «${asset}» не найдены</div></div>`);
+      return;
+    }
+
+    // Get unique expiry dates
+    const expiries = [...new Set(options.map(o => o.EXPIRATIONDATE).filter(Boolean))].sort();
+
+    // Populate expiry selector
+    const sel = document.getElementById('selExpiry');
+    sel.innerHTML = expiries.map(d => `<option value="${d}">${fmtDate(d)}</option>`).join('');
+    sel.disabled = false;
+    document.getElementById('btnRefresh').disabled = false;
+
+    // Cache all expiry data
+    expiries.forEach(exp => {
+      const key = `${asset}|${exp}`;
+      cache[key] = options.filter(o => o.EXPIRATIONDATE === exp);
+    });
+
+    setStatus(`${asset} — ${options.length} опционов`, 'ok');
+
+    // Auto-render first expiry
+    onExpiryChange();
+
+  } catch(e) {
+    setStatus('Ошибка', 'err');
+    setContent(`<div class="state"><div class="state-err">Ошибка: ${e.message}</div></div>`);
+  }
 }
 
-function onAssetChange() {
-  const asset = document.getElementById('selAsset').value;
-
-  const dates = [...new Set(
-    cache
-      .filter(o => assetOf(o) === asset && o.EXPIRATIONDATE)
-      .map(o => o.EXPIRATIONDATE)
-  )].sort();
-
-  const sel = document.getElementById('selExpiry');
-  sel.innerHTML = dates.map(d =>
-    `<option value="${d}">${fmtDate(d)}</option>`
-  ).join('');
-
-  renderTable();
-}
-
-/* ─── table ─────────────────────────────────────────────────── */
-
-function renderTable() {
-  const asset  = document.getElementById('selAsset').value;
+function onExpiryChange() {
   const expiry = document.getElementById('selExpiry').value;
-  if (!asset || !expiry) return;
+  if (!currentAsset || !expiry) return;
 
-  const slice = cache.filter(o => assetOf(o) === asset && o.EXPIRATIONDATE === expiry);
+  const key = `${currentAsset}|${expiry}`;
+  const data = cache[key];
+  if (data) {
+    setStatus(`${currentAsset} / ${fmtDate(expiry)} — ${data.length} опционов`, 'ok');
+    renderTable(data);
+  }
+}
 
+async function reloadCurrent() {
+  if (!currentAsset) return;
+  // Clear cache for current asset
+  Object.keys(cache).forEach(k => { if (k.startsWith(currentAsset + '|')) delete cache[k]; });
+  await selectAsset(currentAsset);
+}
+
+/* ─── table ─── */
+
+function renderTable(slice) {
   if (!slice.length) {
-    setContent('<div class="state"><div class="state-txt">Нет данных для выбранных параметров</div></div>');
+    setContent('<div class="state"><div class="state-txt">Нет данных</div></div>');
     return;
   }
 
@@ -423,18 +455,14 @@ function renderTable() {
   });
 
   if (!strikesSet.size) {
-    setContent('<div class="state"><div class="state-txt">Нет страйков в данных</div></div>');
+    setContent('<div class="state"><div class="state-txt">Нет страйков</div></div>');
     return;
   }
 
-  // high → low (стандарт для опционных досок)
   const strikes = [...strikesSet].sort((a, b) => b - a);
-
-  // ATM — ближайший к среднему между min и max
-  const midPrice = (strikes[0] + strikes[strikes.length - 1]) / 2;
+  const mid = (strikes[0] + strikes[strikes.length - 1]) / 2;
   const atmStrike = strikes.reduce((best, s) =>
-    Math.abs(s - midPrice) < Math.abs(best - midPrice) ? s : best
-  , strikes[0]);
+    Math.abs(s - mid) < Math.abs(best - mid) ? s : best, strikes[0]);
 
   let rows = '';
   strikes.forEach(strike => {
@@ -446,11 +474,11 @@ function renderTable() {
       <td class="cc voi">${fmtN(c.OPENPOSITION)}</td>
       <td class="cc viv">${fmtPct(c.VOLATILITY)}</td>
       <td class="cc vth">${fmtN(c.THEORPRICE, 0)}</td>
-      <td class="cc vb" >${fmtN(c.BID,       0)}</td>
-      <td class="cc va" >${fmtN(c.OFFER,     0)}</td>
+      <td class="cc vb" >${fmtN(c.BID,        0)}</td>
+      <td class="cc va" >${fmtN(c.OFFER,      0)}</td>
       <td class="sc">${strike.toLocaleString('ru-RU')}</td>
-      <td class="pc vb" >${fmtN(p.BID,       0)}</td>
-      <td class="pc va" >${fmtN(p.OFFER,     0)}</td>
+      <td class="pc vb" >${fmtN(p.BID,        0)}</td>
+      <td class="pc va" >${fmtN(p.OFFER,      0)}</td>
       <td class="pc vth">${fmtN(p.THEORPRICE, 0)}</td>
       <td class="pc viv">${fmtPct(p.VOLATILITY)}</td>
       <td class="pc voi">${fmtN(p.OPENPOSITION)}</td>
@@ -466,31 +494,21 @@ function renderTable() {
           <th colspan="5" class="ph">● PUT — Опционы пут</th>
         </tr>
         <tr class="colh">
-          <th class="cc">OI</th>
-          <th class="cc">IV%</th>
-          <th class="cc">Теор.</th>
-          <th class="cc">Bid</th>
-          <th class="cc">Ask</th>
+          <th class="cc">OI</th><th class="cc">IV%</th><th class="cc">Теор.</th>
+          <th class="cc">Bid</th><th class="cc">Ask</th>
           <th class="sc">—</th>
-          <th class="pc">Bid</th>
-          <th class="pc">Ask</th>
-          <th class="pc">Теор.</th>
-          <th class="pc">IV%</th>
-          <th class="pc">OI</th>
+          <th class="pc">Bid</th><th class="pc">Ask</th><th class="pc">Теор.</th>
+          <th class="pc">IV%</th><th class="pc">OI</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>`);
 
-  // прокрутка к ATM-строке
   setTimeout(() => {
     const atm = document.querySelector('tr.atm');
     if (atm) atm.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, 60);
 }
-
-/* ─── init ─────────────────────────────────────────────────── */
-loadAll();
 </script>
 </body>
 </html>
