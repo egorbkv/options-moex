@@ -261,7 +261,7 @@
 </div>
 
 <script>
-const API = '/iss/engines/futures/markets/options/securities.json';
+const API = '/iss/engines/futures/markets/options/boards/ROPD/securities.json';
 
 let currentAsset = null;
 // cache: "ASSET|EXPIRY" -> options array
@@ -335,11 +335,12 @@ async function fetchAssetOptions(asset, onPage) {
       mdMap[o.SECID] = o;
     });
 
+    const today = new Date().toISOString().split('T')[0];
     let matched = 0;
     secRows.forEach(r => {
       const sec = {};
       secCols.forEach((c, i) => sec[c] = r[i]);
-      if (assetOf(sec) === asset) {
+      if (assetOf(sec) === asset && (!sec.EXPIRATIONDATE || sec.EXPIRATIONDATE >= today)) {
         secMap[sec.SECID] = { ...sec, ...(mdMap[sec.SECID] || {}) };
         matched++;
         foundAny = true;
