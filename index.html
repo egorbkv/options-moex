@@ -216,6 +216,14 @@
     .ptable td { padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,.03); text-align: right; }
     .ptable td:first-child { text-align: left; }
     .ptable tr:hover td { background: var(--card); }
+    .pg-header td {
+      background: var(--border); padding: 5px 10px;
+      border-top: 2px solid var(--accent);
+    }
+    .pg-header:first-child td { border-top: none; }
+    .pg-asset { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 1px; }
+    .pg-cnt { color: var(--muted); font-size: 10px; margin-left: 10px; }
+
     .del-btn {
       background: none; border: none; color: var(--muted); cursor: pointer;
       font-size: 14px; padding: 0 4px; line-height: 1;
@@ -754,32 +762,40 @@ async function renderPortfolio() {
     return Number(v).toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   }
 
-  const rows = portfolio.map(p => {
-    const typeLabel   = p.optType === 'call' ? 'CALL' : 'PUT';
-    const dirLabel    = p.direction === 'buy' ? 'Купил' : 'Продал';
-    const strikeStr   = Number(p.strike).toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-    const currentPrice = getCurrentPrice(p);
+  // Group by asset
+  const groups = {};
+  portfolio.forEach(p => { (groups[p.asset] = groups[p.asset] || []).push(p); });
 
-    return `<tr>
-      <td>${p.asset}</td>
-      <td><span class="badge badge-${typeLabel[0]}">${typeLabel}</span></td>
-      <td>${strikeStr}</td>
-      <td>${fmtDate(p.expDate)}</td>
-      <td><span class="${p.direction === 'buy' ? 'vb' : 'va'}">${dirLabel}</span></td>
-      <td>${p.qty}</td>
-      <td style="color:var(--text)">${fmt2(p.price)}</td>
-      <td style="color:var(--accent)">${fmt2(currentPrice)}</td>
-      <td style="color:var(--muted)">${fmt2(p.qty * p.price)}</td>
-      <td><button class="del-btn" onclick="deletePosition(${p.id})" title="Удалить">✕</button></td>
-    </tr>`;
-  }).join('');
+  const COLS = 9; // total columns
+  let rows = '';
+  Object.entries(groups).forEach(([asset, positions]) => {
+    rows += `<tr class="pg-header"><td colspan="${COLS}"><span class="pg-asset">${asset}</span><span class="pg-cnt">${positions.length} поз.</span></td></tr>`;
+
+    positions.forEach(p => {
+      const typeLabel    = p.optType === 'call' ? 'CALL' : 'PUT';
+      const dirLabel     = p.direction === 'buy' ? 'Купил' : 'Продал';
+      const strikeStr    = Number(p.strike).toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      const currentPrice = getCurrentPrice(p);
+
+      rows += `<tr>
+        <td><span class="badge badge-${typeLabel[0]}">${typeLabel}</span></td>
+        <td>${strikeStr}</td>
+        <td>${fmtDate(p.expDate)}</td>
+        <td><span class="${p.direction === 'buy' ? 'vb' : 'va'}">${dirLabel}</span></td>
+        <td>${p.qty}</td>
+        <td style="color:var(--text)">${fmt2(p.price)}</td>
+        <td style="color:var(--accent)">${fmt2(currentPrice)}</td>
+        <td style="color:var(--muted)">${fmt2(p.qty * p.price)}</td>
+        <td><button class="del-btn" onclick="deletePosition(${p.id})" title="Удалить">✕</button></td>
+      </tr>`;
+    });
+  });
 
   setContent(`<div class="ptable-wrap">
     <h2>Позиции (${portfolio.length})</h2>
     <table class="ptable">
       <thead>
         <tr>
-          <th style="text-align:left">Актив</th>
           <th style="text-align:left">Тип</th>
           <th>Страйк</th>
           <th>Экспирация</th>
