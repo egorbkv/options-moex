@@ -221,6 +221,8 @@
       border-top: 2px solid var(--accent);
     }
     .pg-header:first-child td { border-top: none; }
+    .pg-total td { border-top: 1px solid var(--border); padding: 4px 10px;
+      text-align: right; color: var(--text); font-weight: 700; background: rgba(91,156,246,.05); }
     .pg-asset { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 1px; }
     .pg-cnt { color: var(--muted); font-size: 10px; margin-left: 10px; }
 
@@ -769,6 +771,7 @@ async function renderPortfolio() {
   const COLS = 9; // total columns
   let rows = '';
   Object.entries(groups).forEach(([asset, positions]) => {
+    const groupTotal = positions.reduce((s, p) => s + p.qty * p.price, 0);
     rows += `<tr class="pg-header"><td colspan="${COLS}"><span class="pg-asset">${asset}</span><span class="pg-cnt">${positions.length} поз.</span></td></tr>`;
 
     positions.forEach(p => {
@@ -789,6 +792,12 @@ async function renderPortfolio() {
         <td><button class="del-btn" onclick="deletePosition(${p.id})" title="Удалить">✕</button></td>
       </tr>`;
     });
+
+    rows += `<tr class="pg-total">
+      <td colspan="7"></td>
+      <td>${fmt2(groupTotal)}</td>
+      <td></td>
+    </tr>`;
   });
 
   setContent(`<div class="ptable-wrap">
