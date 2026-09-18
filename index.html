@@ -576,13 +576,13 @@ function renderBoard(board) {
     const c = callMap[strike] || {};
     const p = putMap[strike]  || {};
     const isAtm = atmStrike !== null && strike === atmStrike;
-    const cb = c.bid || 0, ca = c.offer || 0;
-    const pb = p.bid || 0, pa = p.offer || 0;
+    const cb = c.bid || 0, ca = c.offer || 0, ct = c.theorprice || 0;
+    const pb = p.bid || 0, pa = p.offer || 0, pt = p.theorprice || 0;
 
     rows_html += `<tr${isAtm ? ' class="atm"' : ''}>
       <td class="act cc">
-        <button class="ab buy" onclick="openModal('call','buy',${strike},${ca},${cb},'${seriesCode}','${expDate}')">▲ B</button>
-        <button class="ab sel" onclick="openModal('call','sell',${strike},${cb},${ca},'${seriesCode}','${expDate}')">▼ S</button>
+        <button class="ab buy" onclick="openModal('call','buy',${strike},${ct},'${seriesCode}','${expDate}')">▲ B</button>
+        <button class="ab sel" onclick="openModal('call','sell',${strike},${ct},'${seriesCode}','${expDate}')">▼ S</button>
       </td>
       <td class="cc viv">${fmtPct(c.volatility)}</td>
       <td class="cc vd" >${fmtDelta(c.delta)}</td>
@@ -598,8 +598,8 @@ function renderBoard(board) {
       <td class="pc vd" >${fmtDelta(p.delta)}</td>
       <td class="pc viv">${fmtPct(p.volatility)}</td>
       <td class="act pc">
-        <button class="ab buy" onclick="openModal('put','buy',${strike},${pa},${pb},'${seriesCode}','${expDate}')">▲ B</button>
-        <button class="ab sel" onclick="openModal('put','sell',${strike},${pb},${pa},'${seriesCode}','${expDate}')">▼ S</button>
+        <button class="ab buy" onclick="openModal('put','buy',${strike},${pt},'${seriesCode}','${expDate}')">▲ B</button>
+        <button class="ab sel" onclick="openModal('put','sell',${strike},${pt},'${seriesCode}','${expDate}')">▼ S</button>
       </td>
     </tr>`;
   });
@@ -632,7 +632,7 @@ function renderBoard(board) {
 }
 
 /* ── MODAL ── */
-function openModal(optType, direction, strike, defaultPrice, altPrice, seriesCode, expDate) {
+function openModal(optType, direction, strike, theorPrice, seriesCode, expDate) {
   pendingTrade = { optType, direction, strike, seriesCode, expDate };
 
   const typeLabel = optType === 'call' ? 'CALL' : 'PUT';
@@ -647,9 +647,7 @@ function openModal(optType, direction, strike, defaultPrice, altPrice, seriesCod
   document.getElementById('mSub').textContent =
     `Серия: ${seriesCode}  /  Экспирация: ${fmtDate(expDate)}`;
 
-  // pre-fill price: ask for buy, bid for sell; fallback to alt
-  const price = defaultPrice > 0 ? defaultPrice : (altPrice > 0 ? altPrice : '');
-  document.getElementById('mPrice').value = price;
+  document.getElementById('mPrice').value = theorPrice > 0 ? theorPrice : '';
   document.getElementById('mQty').value = 1;
 
   const btn = document.getElementById('mConfirm');
