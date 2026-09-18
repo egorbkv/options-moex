@@ -227,6 +227,23 @@ function fmtDelta(v) {
   return n.toFixed(2);
 }
 
+/* ── detect price precision from data ── */
+function detectPrecision(board) {
+  const all = [...(board.call || []), ...(board.put || [])];
+  for (const r of all) {
+    for (const key of ['theorprice', 'bid', 'offer', 'last']) {
+      const v = r[key];
+      if (v === null || v === undefined || v === 0) continue;
+      const s = String(Number(v));
+      if (s.includes('.')) {
+        const dec = s.split('.')[1].replace(/0+$/, '').length;
+        if (dec > 0) return 2; // kopeck precision
+      }
+    }
+  }
+  return 0; // ruble precision
+}
+
 /* ── rows control ── */
 function changeRows(d) {
   rows = Math.max(5, Math.min(50, rows + d));
@@ -339,6 +356,7 @@ async function loadBoard() {
 function renderBoard(board) {
   const calls = board.call || [];
   const puts  = board.put  || [];
+  const dec = detectPrecision(board);
 
   // Build maps by strike
   const callMap = {}, putMap = {};
@@ -365,15 +383,15 @@ function renderBoard(board) {
     rows_html += `<tr${isAtm ? ' class="atm"' : ''}>
       <td class="cc viv">${fmtPct(c.volatility)}</td>
       <td class="cc vd" >${fmtDelta(c.delta)}</td>
-      <td class="cc vth">${fmtN(c.theorprice, 0)}</td>
-      <td class="cc vl" >${fmtN(c.last,       0)}</td>
-      <td class="cc vb" >${fmtN(c.bid,        0)}</td>
-      <td class="cc va" >${fmtN(c.offer,      0)}</td>
-      <td class="sc">${Number(strike).toLocaleString('ru-RU')}</td>
-      <td class="pc vb" >${fmtN(p.bid,        0)}</td>
-      <td class="pc va" >${fmtN(p.offer,      0)}</td>
-      <td class="pc vl" >${fmtN(p.last,       0)}</td>
-      <td class="pc vth">${fmtN(p.theorprice, 0)}</td>
+      <td class="cc vth">${fmtN(c.theorprice, dec)}</td>
+      <td class="cc vl" >${fmtN(c.last,       dec)}</td>
+      <td class="cc vb" >${fmtN(c.bid,        dec)}</td>
+      <td class="cc va" >${fmtN(c.offer,      dec)}</td>
+      <td class="sc">${Number(strike).toLocaleString('ru-RU', {minimumFractionDigits: dec, maximumFractionDigits: dec})}</td>
+      <td class="pc vb" >${fmtN(p.bid,        dec)}</td>
+      <td class="pc va" >${fmtN(p.offer,      dec)}</td>
+      <td class="pc vl" >${fmtN(p.last,       dec)}</td>
+      <td class="pc vth">${fmtN(p.theorprice, dec)}</td>
       <td class="pc vd" >${fmtDelta(p.delta)}</td>
       <td class="pc viv">${fmtPct(p.volatility)}</td>
     </tr>`;
