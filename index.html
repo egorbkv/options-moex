@@ -788,7 +788,7 @@ async function renderPortfolio() {
     if (v === null || v === undefined) return '<span class="v0">—</span>';
     return Number(v).toLocaleString('ru-RU', {minimumFractionDigits: dec, maximumFractionDigits: dec});
   }
-  function posTotal(p) { return p.qty * p.price * (p.lotMult || 1); }
+  function posTotal(p) { return p.qty * p.price * (p.lotMult || 1) * (p.direction === 'sell' ? -1 : 1); }
 
   const COLS = 9; // total columns
   let rows = '';
@@ -811,7 +811,7 @@ async function renderPortfolio() {
         <td>${p.qty}</td>
         <td style="color:var(--text)">${fmtP(p.price, dec)}</td>
         <td style="color:var(--accent)">${fmtP(currentPrice, dec)}</td>
-        <td style="color:var(--muted)">${fmtP(posTotal(p), 2)}</td>
+        <td style="color:${posTotal(p) >= 0 ? 'var(--call)' : 'var(--put)'}">${fmtP(posTotal(p), 2)}</td>
         <td><button class="del-btn" onclick="deletePosition(${p.id})" title="Удалить">✕</button></td>
       </tr>`;
     });
