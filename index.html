@@ -114,6 +114,36 @@
     .vl  { color: #60a5fa; }
     .v0  { color: var(--border); }
 
+    /* ── autocomplete ── */
+    .ac-wrap { position: relative; }
+    .ac-input {
+      background: var(--card); color: var(--text); border: 1px solid var(--border);
+      padding: 5px 28px 5px 9px; border-radius: 3px; font-family: inherit; font-size: 12px;
+      width: 180px; outline: none;
+    }
+    .ac-input:focus { border-color: var(--accent); }
+    .ac-clear {
+      position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+      color: var(--muted); cursor: pointer; font-size: 13px; line-height: 1;
+      display: none; background: none; border: none; padding: 0;
+    }
+    .ac-input:not(:placeholder-shown) ~ .ac-clear { display: block; }
+    .ac-drop {
+      position: absolute; top: calc(100% + 3px); left: 0; z-index: 100;
+      background: var(--card); border: 1px solid var(--border); border-radius: 3px;
+      min-width: 280px; max-height: 240px; overflow-y: auto;
+      box-shadow: 0 8px 24px rgba(0,0,0,.5); display: none;
+    }
+    .ac-drop.open { display: block; }
+    .ac-item {
+      padding: 6px 10px; cursor: pointer; display: flex; gap: 10px; align-items: baseline;
+    }
+    .ac-item:hover, .ac-item.sel { background: var(--border); }
+    .ac-item .ac-code { color: var(--accent); font-weight: 700; min-width: 50px; }
+    .ac-item .ac-title { color: var(--muted); font-size: 11px; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; }
+    .ac-empty { padding: 8px 10px; color: var(--muted); font-size: 11px; }
+
     /* series type badge */
     .badge { display: inline-block; padding: 1px 5px; border-radius: 2px; font-size: 10px;
       margin-left: 4px; vertical-align: middle; }
@@ -136,10 +166,11 @@
     <span class="ctrl-lbl" style="align-self:center">Актив:</span>
   </div>
 
-  <div style="display:flex;align-items:center;gap:5px">
-    <select id="selAsset" style="min-width:120px" onchange="onAssetSelect()">
-      <option value="">— загрузка —</option>
-    </select>
+  <div class="ac-wrap" id="acWrap">
+    <input id="acInput" class="ac-input" type="text" placeholder="Тикер…" autocomplete="off"
+      oninput="acFilter()" onfocus="acOpen()" onkeydown="acKey(event)">
+    <button class="ac-clear" onclick="acClear()" tabindex="-1">✕</button>
+    <div id="acDrop" class="ac-drop"></div>
   </div>
 
   <div style="display:flex;align-items:center;gap:6px">
@@ -251,27 +282,23 @@ function changeRows(d) {
   if (currentAsset && currentSeries) loadBoard();
 }
 
-/* ── 1. load assets ── */
+/* ── 1. load assets + autocomplete ── */
 const PRESETS = ['Si', 'Ri', 'Eu', 'GAZP', 'SBER', 'LKOH'];
+let allAssets = [];
+let acIdx = -1;
 
 async function init() {
   try {
-    const assets = await api('/assets');
-
-    // Populate dropdown
-    const sel = document.getElementById('selAsset');
-    sel.innerHTML = assets.map(a =>
-      `<option value="${a.asset_code}">${a.asset_code} — ${a.title}</option>`
-    ).join('');
+    allAssets = await api('/assets');
 
     // Preset buttons
     const container = document.getElementById('presets');
     PRESETS.forEach(code => {
-      if (assets.find(a => a.asset_code === code)) {
+      if (allAssets.find(a => a.asset_code === code)) {
         const btn = document.createElement('button');
         btn.className = 'pbtn';
         btn.textContent = code;
-        btn.onclick = () => { sel.value = code; onAssetSelect(); };
+        btn.onclick = () => acSelect(code);
         container.appendChild(btn);
       }
     });
@@ -279,20 +306,103 @@ async function init() {
     setStatus('Выберите актив', '');
     setContent('<div class="state"><div class="state-txt">Выберите базовый актив</div></div>');
 
-    // Auto-select Si if available
-    if (assets.find(a => a.asset_code === 'Si')) {
-      sel.value = 'Si';
-      onAssetSelect();
-    }
+    // Auto-select Si
+    if (allAssets.find(a => a.asset_code === 'Si')) acSelect('Si');
   } catch(e) {
     setStatus('Ошибка', 'err');
     setContent(`<div class="state"><div class="state-err">Ошибка загрузки активов: ${e.message}</div></div>`);
   }
 }
 
+/* ── autocomplete helpers ── */
+function acMatches(q) {
+  if (!q) return allAssets.slice(0, 30);
+  const u = q.toUpperCase();
+  return allAssets.filter(a =>
+    a.asset_code.toUpperCase().includes(u) ||
+    (a.title || '').toUpperCase().includes(u)
+  ).slice(0, 30);
+}
+
+function acRender(items) {
+  const drop = document.getElementById('acDrop');
+  if (!items.length) {
+    drop.innerHTML = '<div class="ac-empty">Ничего не найдено</div>';
+    return;
+  }
+  drop.innerHTML = items.map((a, i) =>
+    `<div class="ac-item" data-code="${a.asset_code}" onmousedown="acSelect('${a.asset_code}')">
+      <span class="ac-code">${a.asset_code}</span>
+      <span class="ac-title">${a.title || ''}</span>
+    </div>`
+  ).join('');
+  acHighlight();
+}
+
+function acHighlight() {
+  document.querySelectorAll('.ac-item').forEach((el, i) =>
+    el.classList.toggle('sel', i === acIdx)
+  );
+}
+
+function acOpen() {
+  acIdx = -1;
+  acRender(acMatches(document.getElementById('acInput').value));
+  document.getElementById('acDrop').classList.add('open');
+}
+
+function acFilter() {
+  acIdx = -1;
+  acRender(acMatches(document.getElementById('acInput').value));
+  document.getElementById('acDrop').classList.add('open');
+}
+
+function acClose() {
+  document.getElementById('acDrop').classList.remove('open');
+}
+
+function acKey(e) {
+  const items = document.querySelectorAll('.ac-item');
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    acIdx = Math.min(acIdx + 1, items.length - 1);
+    acHighlight();
+    items[acIdx]?.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    acIdx = Math.max(acIdx - 1, 0);
+    acHighlight();
+    items[acIdx]?.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    const sel = items[acIdx] || items[0];
+    if (sel) acSelect(sel.dataset.code);
+  } else if (e.key === 'Escape') {
+    acClose();
+  }
+}
+
+function acClear() {
+  document.getElementById('acInput').value = '';
+  document.getElementById('acInput').focus();
+  acOpen();
+}
+
+function acSelect(code) {
+  const asset = allAssets.find(a => a.asset_code === code);
+  if (!asset) return;
+  document.getElementById('acInput').value = code;
+  acClose();
+  onAssetSelect(code);
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', e => {
+  if (!document.getElementById('acWrap').contains(e.target)) acClose();
+});
+
 /* ── 2. load option series ── */
-async function onAssetSelect() {
-  const asset = document.getElementById('selAsset').value;
+async function onAssetSelect(asset) {
   if (!asset) return;
   currentAsset = asset;
 
