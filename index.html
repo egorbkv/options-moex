@@ -337,6 +337,7 @@ let currentSeries = null;
 let allSeries = [];
 let currentTab = 'board';
 let currentDec = 0;
+let currentLotMult = 1;
 
 // pending trade from modal
 let pendingTrade = null;
@@ -400,18 +401,31 @@ function fmtDelta(v) {
 /* ── detect price precision ── */
 function detectPrecision(board) {
   const all = [...(board.call || []), ...(board.put || [])];
+  let maxDec = 0;
   for (const r of all) {
     for (const key of ['theorprice', 'bid', 'offer', 'last']) {
       const v = r[key];
-      if (v === null || v === undefined || v === 0) continue;
+      if (!v) continue;
       const s = String(Number(v));
       if (s.includes('.')) {
         const dec = s.split('.')[1].replace(/0+$/, '').length;
-        if (dec > 0) return 2;
+        if (dec > maxDec) maxDec = dec;
       }
     }
   }
-  return 0;
+  return maxDec; // 0, 1, 2, or 3
+}
+
+/* ── detect lot multiplier (e.g. 1000 for CNY) via theorprice_rub/theorprice ── */
+function detectLotMultiplier(board) {
+  const all = [...(board.call || []), ...(board.put || [])];
+  for (const r of all) {
+    if (r.theorprice > 0 && r.theorprice_rub > 0) {
+      const mult = Math.round(r.theorprice_rub / r.theorprice);
+      if (mult > 1) return mult;
+    }
+  }
+  return 1;
 }
 
 /* ── rows control ── */
@@ -569,6 +583,7 @@ function renderBoard(board) {
   const puts  = board.put  || [];
   const dec = detectPrecision(board);
   currentDec = dec;
+  currentLotMult = detectLotMultiplier(board);
 
   const callMap = {}, putMap = {};
   calls.forEach(c => callMap[c.strike] = c);
@@ -643,7 +658,7 @@ function renderBoard(board) {
 
 /* ── MODAL ── */
 function openModal(optType, direction, strike, theorPrice, seriesCode, expDate) {
-  pendingTrade = { optType, direction, strike, seriesCode, expDate };
+  pendingTrade = { optType, direction, strike, seriesCode, expDate, lotMult: currentLotMult };
 
   const typeLabel = optType === 'call' ? 'CALL' : 'PUT';
   const dirLabel  = direction === 'buy' ? 'Купить' : 'Продать';
@@ -702,6 +717,7 @@ function confirmTrade() {
     qty,
     price,
     dec: currentDec,
+    lotMult: pendingTrade.lotMult || 1,
     addedAt: new Date().toISOString(),
   };
 
@@ -768,16 +784,23 @@ async function renderPortfolio() {
   const groups = {};
   portfolio.forEach(p => { (groups[p.asset] = groups[p.asset] || []).push(p); });
 
+  function fmtP(v, dec) {
+    if (v === null || v === undefined) return '<span class="v0">—</span>';
+    return Number(v).toLocaleString('ru-RU', {minimumFractionDigits: dec, maximumFractionDigits: dec});
+  }
+  function posTotal(p) { return p.qty * p.price * (p.lotMult || 1); }
+
   const COLS = 9; // total columns
   let rows = '';
   Object.entries(groups).forEach(([asset, positions]) => {
-    const groupTotal = positions.reduce((s, p) => s + p.qty * p.price, 0);
+    const groupTotal = positions.reduce((s, p) => s + posTotal(p), 0);
     rows += `<tr class="pg-header"><td colspan="${COLS}"><span class="pg-asset">${asset}</span><span class="pg-cnt">${positions.length} поз.</span></td></tr>`;
 
     positions.forEach(p => {
       const typeLabel    = p.optType === 'call' ? 'CALL' : 'PUT';
       const dirLabel     = p.direction === 'buy' ? 'Купил' : 'Продал';
-      const strikeStr    = Number(p.strike).toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      const dec          = p.dec ?? 2;
+      const strikeStr    = Number(p.strike).toLocaleString('ru-RU', {minimumFractionDigits: dec, maximumFractionDigits: dec});
       const currentPrice = getCurrentPrice(p);
 
       rows += `<tr>
@@ -786,16 +809,16 @@ async function renderPortfolio() {
         <td>${fmtDate(p.expDate)}</td>
         <td><span class="${p.direction === 'buy' ? 'vb' : 'va'}">${dirLabel}</span></td>
         <td>${p.qty}</td>
-        <td style="color:var(--text)">${fmt2(p.price)}</td>
-        <td style="color:var(--accent)">${fmt2(currentPrice)}</td>
-        <td style="color:var(--muted)">${fmt2(p.qty * p.price)}</td>
+        <td style="color:var(--text)">${fmtP(p.price, dec)}</td>
+        <td style="color:var(--accent)">${fmtP(currentPrice, dec)}</td>
+        <td style="color:var(--muted)">${fmtP(posTotal(p), 2)}</td>
         <td><button class="del-btn" onclick="deletePosition(${p.id})" title="Удалить">✕</button></td>
       </tr>`;
     });
 
     rows += `<tr class="pg-total">
       <td colspan="7"></td>
-      <td>${fmt2(groupTotal)}</td>
+      <td>${fmtP(groupTotal, 2)}</td>
       <td></td>
     </tr>`;
   });
