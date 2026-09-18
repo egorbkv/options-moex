@@ -647,7 +647,7 @@ function openModal(optType, direction, strike, theorPrice, seriesCode, expDate) 
   document.getElementById('mSub').textContent =
     `Серия: ${seriesCode}  /  Экспирация: ${fmtDate(expDate)}`;
 
-  document.getElementById('mPrice').value = theorPrice > 0 ? theorPrice : '';
+  document.getElementById('mPrice').value = theorPrice > 0 ? +theorPrice.toFixed(2) : '';
   document.getElementById('mQty').value = 1;
 
   const btn = document.getElementById('mConfirm');
