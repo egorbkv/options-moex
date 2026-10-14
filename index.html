@@ -233,6 +233,27 @@
     .del-btn:hover { color: var(--put); background: none; }
     .p-empty { padding: 48px; text-align: center; color: var(--muted); }
 
+    /* ── FINAM CONNECT ── */
+    .finam-bar {
+      display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      font-size: 11px; flex-wrap: wrap;
+    }
+    .finam-status { color: var(--muted); }
+    .finam-status.ok { color: var(--call); }
+    .finam-connect {
+      display: flex; align-items: center; justify-content: center; flex-direction: column;
+      gap: 14px; padding: 60px 20px; text-align: center;
+    }
+    .finam-connect p { color: var(--muted); max-width: 380px; line-height: 1.6; }
+    .btn-primary {
+      background: rgba(91,156,246,.2); color: var(--accent); border: 1px solid rgba(91,156,246,.4);
+      padding: 8px 20px; border-radius: 3px; font-family: inherit; font-size: 12px; cursor: pointer;
+    }
+    .btn-primary:hover { background: rgba(91,156,246,.35); }
+    .pnl-pos { color: var(--call); }
+    .pnl-neg { color: var(--put); }
+
     /* ── FOOTER ── */
     .ftr { background: var(--surface); border-top: 1px solid var(--border);
       padding: 5px 16px; display: flex; gap: 16px; flex-wrap: wrap; flex-shrink: 0; }
@@ -308,25 +329,29 @@
   <div class="leg"><span class="badge badge-Q">Q</span>Кварт</div>
 </div>
 
-<!-- Modal -->
-<div class="modal-overlay hidden" id="modal" onclick="closeModalOutside(event)">
+<!-- Finam settings modal -->
+<div class="modal-overlay hidden" id="finamModal" onclick="if(event.target===this)closeFinamModal()">
   <div class="modal-box">
-    <div class="modal-title" id="mTitle"></div>
-    <div class="modal-sub" id="mSub"></div>
+    <div class="modal-title">Подключить Finam Trade</div>
+    <div class="modal-sub">Токен и ID клиента хранятся только в браузере</div>
     <div class="modal-field">
-      <label>Количество контрактов</label>
-      <input type="number" id="mQty" min="1" step="1" value="1">
+      <label>API-токен</label>
+      <input type="text" id="finamTokenInput" placeholder="Вставьте токен из Finam Trade" style="width:100%;padding:7px 10px;font-size:12px;background:var(--card);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:inherit">
     </div>
     <div class="modal-field">
-      <label>Цена</label>
-      <input type="number" id="mPrice" min="0" step="any">
+      <label>ID клиента</label>
+      <input type="text" id="finamClientInput" placeholder="Например: D12345" style="width:100%;padding:7px 10px;font-size:12px;background:var(--card);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:inherit">
+    </div>
+    <div class="modal-field" style="font-size:10px;color:var(--muted);margin-top:-4px">
+      Токен: Finam Trade → Настройки → API → Создать токен
     </div>
     <div class="modal-btns">
-      <button onclick="closeModal()">Отмена</button>
-      <button id="mConfirm" onclick="confirmTrade()">Добавить</button>
+      <button onclick="closeFinamModal()">Отмена</button>
+      <button class="btn-primary" onclick="saveFinamSettings()">Подключить</button>
     </div>
   </div>
 </div>
+
 
 <script>
 const BASE = '/iss/apps/option-calc/v1';
@@ -338,9 +363,6 @@ let allSeries = [];
 let currentTab = 'board';
 let currentDec = 0;
 let currentLotMult = 1;
-
-// pending trade from modal
-let pendingTrade = null;
 
 /* ── TABS ── */
 function switchTab(tab) {
@@ -601,14 +623,7 @@ function renderBoard(board) {
     const c = callMap[strike] || {};
     const p = putMap[strike]  || {};
     const isAtm = atmStrike !== null && strike === atmStrike;
-    const cb = c.bid || 0, ca = c.offer || 0, ct = c.theorprice || 0;
-    const pb = p.bid || 0, pa = p.offer || 0, pt = p.theorprice || 0;
-
     rows_html += `<tr${isAtm ? ' class="atm"' : ''}>
-      <td class="act cc">
-        <button class="ab buy" onclick="openModal('call','buy',${strike},${ct},'${seriesCode}','${expDate}')">▲ B</button>
-        <button class="ab sel" onclick="openModal('call','sell',${strike},${ct},'${seriesCode}','${expDate}')">▼ S</button>
-      </td>
       <td class="cc viv">${fmtPct(c.volatility)}</td>
       <td class="cc vd" >${fmtDelta(c.delta)}</td>
       <td class="cc vth">${fmtN(c.theorprice, dec)}</td>
@@ -622,10 +637,6 @@ function renderBoard(board) {
       <td class="pc vth">${fmtN(p.theorprice, dec)}</td>
       <td class="pc vd" >${fmtDelta(p.delta)}</td>
       <td class="pc viv">${fmtPct(p.volatility)}</td>
-      <td class="act pc">
-        <button class="ab buy" onclick="openModal('put','buy',${strike},${pt},'${seriesCode}','${expDate}')">▲ B</button>
-        <button class="ab sel" onclick="openModal('put','sell',${strike},${pt},'${seriesCode}','${expDate}')">▼ S</button>
-      </td>
     </tr>`;
   });
 
@@ -633,18 +644,16 @@ function renderBoard(board) {
     <table>
       <thead>
         <tr class="gh">
-          <th class="ch" colspan="7">● CALL — Опционы колл</th>
+          <th class="ch" colspan="6">● CALL — Опционы колл</th>
           <th class="sh">СТРАЙК</th>
-          <th class="ph" colspan="7">● PUT — Опционы пут</th>
+          <th class="ph" colspan="6">● PUT — Опционы пут</th>
         </tr>
         <tr class="colh">
-          <th class="ac">B/S</th>
           <th class="cc">IV%</th><th class="cc">Δ</th><th class="cc">Теор.</th>
           <th class="cc">Last</th><th class="cc">Bid</th><th class="cc">Ask</th>
           <th class="sc">—</th>
           <th class="pc">Bid</th><th class="pc">Ask</th><th class="pc">Last</th>
           <th class="pc">Теор.</th><th class="pc">Δ</th><th class="pc">IV%</th>
-          <th class="ap">B/S</th>
         </tr>
       </thead>
       <tbody>${rows_html}</tbody>
@@ -656,199 +665,195 @@ function renderBoard(board) {
   }, 60);
 }
 
-/* ── MODAL ── */
-function openModal(optType, direction, strike, theorPrice, seriesCode, expDate) {
-  pendingTrade = { optType, direction, strike, seriesCode, expDate, lotMult: currentLotMult };
-
-  const typeLabel = optType === 'call' ? 'CALL' : 'PUT';
-  const dirLabel  = direction === 'buy' ? 'Купить' : 'Продать';
-  const dirClass  = direction === 'buy' ? 'buy' : 'sel';
-  const strikeStr = Number(strike).toLocaleString('ru-RU', {minimumFractionDigits: currentDec, maximumFractionDigits: currentDec});
-
-  document.getElementById('mTitle').innerHTML =
-    `<span class="${dirClass === 'buy' ? 'vb' : 'va'}">${dirLabel}</span> ` +
-    `<span class="badge badge-${optType.toUpperCase()[0]}">${typeLabel}</span> ` +
-    `${currentAsset} — страйк ${strikeStr}`;
-  document.getElementById('mSub').textContent =
-    `Серия: ${seriesCode}  /  Экспирация: ${fmtDate(expDate)}`;
-
-  document.getElementById('mPrice').value = theorPrice > 0 ? +theorPrice.toFixed(2) : '';
-  document.getElementById('mQty').value = 1;
-
-  const btn = document.getElementById('mConfirm');
-  btn.textContent = dirLabel;
-  btn.className = direction === 'buy' ? 'btn-confirm-buy' : 'btn-confirm-sell';
-
-  document.getElementById('modal').classList.remove('hidden');
-  document.getElementById('mQty').focus();
-  document.getElementById('mQty').select();
-}
-
-function closeModal() {
-  document.getElementById('modal').classList.add('hidden');
-  pendingTrade = null;
-}
-
-function closeModalOutside(e) {
-  if (e.target === document.getElementById('modal')) closeModal();
-}
-
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Escape') closeFinamModal();
 });
 
-function confirmTrade() {
-  if (!pendingTrade) return;
-  const qty   = parseInt(document.getElementById('mQty').value, 10);
-  const price = parseFloat(document.getElementById('mPrice').value);
-  if (!qty || qty < 1 || isNaN(price) || price < 0) {
-    alert('Введите корректное количество и цену');
-    return;
-  }
-
-  const position = {
-    id: Date.now(),
-    asset: currentAsset,
-    seriesCode: pendingTrade.seriesCode,
-    expDate: pendingTrade.expDate,
-    optType: pendingTrade.optType,
-    direction: pendingTrade.direction,
-    strike: pendingTrade.strike,
-    qty,
-    price,
-    dec: currentDec,
-    lotMult: pendingTrade.lotMult || 1,
-    addedAt: new Date().toISOString(),
+/* ── FINAM settings ── */
+function getFinamCreds() {
+  return {
+    token:    localStorage.getItem('finam_token')     || '',
+    clientId: localStorage.getItem('finam_client_id') || '',
   };
-
-  const portfolio = loadPortfolio();
-  portfolio.push(position);
-  savePortfolio(portfolio);
-  updatePortCnt();
-  closeModal();
-
-  // brief flash on tab button
-  const t = document.getElementById('tabPortfolio');
-  t.style.transition = 'none';
-  t.style.background = 'rgba(91,156,246,.3)';
-  setTimeout(() => { t.style.transition = ''; t.style.background = ''; }, 400);
+}
+function openFinamModal() {
+  const { token, clientId } = getFinamCreds();
+  document.getElementById('finamTokenInput').value  = token;
+  document.getElementById('finamClientInput').value = clientId;
+  document.getElementById('finamModal').classList.remove('hidden');
+  document.getElementById('finamTokenInput').focus();
+}
+function closeFinamModal() {
+  document.getElementById('finamModal').classList.add('hidden');
+}
+function saveFinamSettings() {
+  const token    = document.getElementById('finamTokenInput').value.trim();
+  const clientId = document.getElementById('finamClientInput').value.trim();
+  if (!token || !clientId) { alert('Введите токен и ID клиента'); return; }
+  localStorage.setItem('finam_token',     token);
+  localStorage.setItem('finam_client_id', clientId);
+  closeFinamModal();
+  renderPortfolio();
+}
+function disconnectFinam() {
+  if (!confirm('Отключить Finam? Данные портфеля из Финама перестанут отображаться.')) return;
+  localStorage.removeItem('finam_token');
+  localStorage.removeItem('finam_client_id');
+  renderPortfolio();
 }
 
-/* ── PORTFOLIO storage ── */
-function loadPortfolio() {
-  try { return JSON.parse(localStorage.getItem('moex_portfolio') || '[]'); } catch { return []; }
+/* ── FINAM API ── */
+async function fetchFinamPositions(token, clientId) {
+  const url = `/finam/public/api/v1/portfolio?ClientId=${encodeURIComponent(clientId)}&Content.IncludePositions=true&Content.IncludeSaldo=false`;
+  const r = await fetch(url, { headers: { 'X-Api-Key': token } });
+  if (!r.ok) throw new Error(`Finam API: HTTP ${r.status}`);
+  const data = await r.json();
+  return (data.data?.positions || data.positions || []);
 }
-function savePortfolio(p) {
-  try { localStorage.setItem('moex_portfolio', JSON.stringify(p)); } catch {}
-}
-function updatePortCnt() {
-  const p = loadPortfolio();
-  const cnt = document.getElementById('portCnt');
-  cnt.textContent = p.length || '';
+
+function fmtF(v, dec = 2) {
+  if (v === null || v === undefined || v === '' || isNaN(Number(v))) return '<span class="v0">—</span>';
+  return Number(v).toLocaleString('ru-RU', {minimumFractionDigits: dec, maximumFractionDigits: dec});
 }
 
 /* ── PORTFOLIO view ── */
 async function renderPortfolio() {
-  const portfolio = loadPortfolio();
-  if (!portfolio.length) {
-    setContent('<div class="p-empty">Портфель пуст.<br><br>Нажмите ▲ B или ▼ S в доске опционов, чтобы добавить позицию.</div>');
+  const { token, clientId } = getFinamCreds();
+
+  if (!token || !clientId) {
+    setContent(`<div class="finam-connect">
+      <div style="font-size:28px">📊</div>
+      <p>Подключите Finam Trade, чтобы автоматически видеть свои опционные позиции.</p>
+      <button class="btn-primary" onclick="openFinamModal()">Подключить Finam</button>
+    </div>`);
+    updatePortCnt(0);
     return;
   }
 
-  setContent('<div class="state"><div class="spinner"></div><div class="state-txt">Загрузка текущих цен…</div></div>');
+  setContent('<div class="state"><div class="spinner"></div><div class="state-txt">Загрузка портфеля из Finam…</div></div>');
 
-  // Fetch boards for each unique series in parallel
-  const seriesKeys = [...new Set(portfolio.map(p => `${p.asset}|${p.seriesCode}`))];
-  const boards = {};
-  await Promise.all(seriesKeys.map(async key => {
-    const [asset, seriesCode] = key.split('|');
-    try {
-      boards[key] = await api(`/assets/${asset}/optionseries/${encodeURIComponent(seriesCode)}/optionboard?rows=100`);
-    } catch { boards[key] = null; }
-  }));
-
-  function getCurrentPrice(p) {
-    const board = boards[`${p.asset}|${p.seriesCode}`];
-    if (!board) return null;
-    const row = (board[p.optType] || []).find(r => r.strike === p.strike);
-    if (!row) return null;
-    return (row.last > 0) ? row.last : (row.theorprice > 0 ? row.theorprice : null);
+  let positions;
+  try {
+    positions = await fetchFinamPositions(token, clientId);
+  } catch(e) {
+    setContent(`<div class="state">
+      <div class="state-err">Ошибка Finam API: ${e.message}</div>
+      <button class="btn-primary" style="margin-top:12px" onclick="openFinamModal()">Изменить настройки</button>
+    </div>`);
+    return;
   }
 
-  function fmt2(v) {
-    if (v === null || v === undefined) return '<span class="v0">—</span>';
-    return Number(v).toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-  }
-
-  // Group by asset
-  const groups = {};
-  portfolio.forEach(p => { (groups[p.asset] = groups[p.asset] || []).push(p); });
-
-  function fmtP(v, dec) {
-    if (v === null || v === undefined) return '<span class="v0">—</span>';
-    return Number(v).toLocaleString('ru-RU', {minimumFractionDigits: dec, maximumFractionDigits: dec});
-  }
-  function posTotal(p) { return p.qty * p.price * (p.lotMult || 1) * (p.direction === 'sell' ? -1 : 1); }
-
-  const COLS = 9; // total columns
-  let rows = '';
-  Object.entries(groups).forEach(([asset, positions]) => {
-    const groupTotal = positions.reduce((s, p) => s + posTotal(p), 0);
-    rows += `<tr class="pg-header"><td colspan="${COLS}"><span class="pg-asset">${asset}</span><span class="pg-cnt">${positions.length} поз.</span></td></tr>`;
-
-    positions.forEach(p => {
-      const typeLabel    = p.optType === 'call' ? 'CALL' : 'PUT';
-      const dirLabel     = p.direction === 'buy' ? 'Купил' : 'Продал';
-      const dec          = p.dec ?? 2;
-      const strikeStr    = Number(p.strike).toLocaleString('ru-RU', {minimumFractionDigits: dec, maximumFractionDigits: dec});
-      const currentPrice = getCurrentPrice(p);
-
-      rows += `<tr>
-        <td><span class="badge badge-${typeLabel[0]}">${typeLabel}</span></td>
-        <td>${strikeStr}</td>
-        <td>${fmtDate(p.expDate)}</td>
-        <td><span class="${p.direction === 'buy' ? 'vb' : 'va'}">${dirLabel}</span></td>
-        <td>${p.qty}</td>
-        <td style="color:var(--text)">${fmtP(p.price, dec)}</td>
-        <td style="color:var(--accent)">${fmtP(currentPrice, dec)}</td>
-        <td style="color:${posTotal(p) >= 0 ? 'var(--call)' : 'var(--put)'}">${fmtP(posTotal(p), 2)}</td>
-        <td><button class="del-btn" onclick="deletePosition(${p.id})" title="Удалить">✕</button></td>
-      </tr>`;
-    });
-
-    rows += `<tr class="pg-total">
-      <td colspan="7"></td>
-      <td>${fmtP(groupTotal, 2)}</td>
-      <td></td>
-    </tr>`;
+  // Filter: non-zero balance, FORTS market (14) or all if market field absent
+  const opts = positions.filter(p => {
+    const bal = Number(p.balance ?? p.Balance ?? 0);
+    if (!bal) return false;
+    const mkt = p.market ?? p.Market;
+    return mkt === undefined || mkt === 14 || mkt === 'Forts' || mkt === 'FuturesAndOptions';
   });
 
-  setContent(`<div class="ptable-wrap">
-    <h2>Позиции (${portfolio.length})</h2>
-    <table class="ptable">
-      <thead>
-        <tr>
-          <th style="text-align:left">Тип</th>
-          <th>Страйк</th>
-          <th>Экспирация</th>
-          <th>Позиция</th>
-          <th>Кол-во</th>
-          <th>Цена входа</th>
-          <th>Тек. цена</th>
-          <th>Итого</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  </div>`);
+  updatePortCnt(opts.length);
+
+  if (!opts.length) {
+    setContent(`<div class="finam-connect">
+      <p style="color:var(--muted)">Открытых позиций нет (подключено: ${clientId})</p>
+      <button onclick="renderPortfolio()" style="margin-top:8px">↻ Обновить</button>
+      <button onclick="disconnectFinam()" style="margin-top:4px;color:var(--muted)">Отключить</button>
+    </div>`);
+    return;
+  }
+
+  // Group by underlying (parse from securityCode or securityName)
+  function getUnderlying(p) {
+    const code = p.securityCode || p.SecurityCode || '';
+    // MOEX option codes start with underlying: Si, Ri, GAZP, SBER etc.
+    const m = code.match(/^([A-Za-z]+\d*[A-Za-z]*)/);
+    return m ? m[1].replace(/\d.*$/, '') : code.slice(0, 4);
+  }
+
+  const groups = {};
+  opts.forEach(p => {
+    const key = getUnderlying(p);
+    (groups[key] = groups[key] || []).push(p);
+  });
+
+  const COLS = 7;
+  let rows = '';
+  let grandPnl = 0;
+
+  Object.entries(groups).forEach(([underlying, positions]) => {
+    const groupPnl = positions.reduce((s, p) => s + Number(p.unrealizedPnl ?? p.UnrealizedPnl ?? 0), 0);
+    grandPnl += groupPnl;
+    const pnlCls = groupPnl >= 0 ? 'pnl-pos' : 'pnl-neg';
+
+    rows += `<tr class="pg-header">
+      <td colspan="${COLS}">
+        <span class="pg-asset">${underlying}</span>
+        <span class="pg-cnt">${positions.length} поз.</span>
+        <span class="${pnlCls}" style="margin-left:auto;float:right;font-size:11px">P&amp;L: ${Number(groupPnl).toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+      </td>
+    </tr>`;
+
+    positions.forEach(p => {
+      const code     = p.securityCode  || p.SecurityCode  || '—';
+      const name     = p.securityName  || p.SecurityName  || '';
+      const balance  = Number(p.balance ?? p.Balance ?? 0);
+      const avgPrice = Number(p.averagePrice  ?? p.AveragePrice  ?? 0);
+      const curPrice = Number(p.currentPrice  ?? p.CurrentPrice  ?? 0);
+      const pnl      = Number(p.unrealizedPnl ?? p.UnrealizedPnl ?? 0);
+      const dirLabel = balance > 0 ? 'Куплено' : 'Продано';
+      const dirCls   = balance > 0 ? 'vb' : 'va';
+      const pnlCls   = pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
+
+      rows += `<tr>
+        <td title="${name}">${code}</td>
+        <td><span class="${dirCls}">${dirLabel}</span></td>
+        <td>${Math.abs(balance)}</td>
+        <td>${fmtF(avgPrice)}</td>
+        <td style="color:var(--accent)">${fmtF(curPrice)}</td>
+        <td class="${pnlCls}">${fmtF(pnl)}</td>
+        <td style="color:var(--muted);font-size:10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</td>
+      </tr>`;
+    });
+  });
+
+  const grandCls = grandPnl >= 0 ? 'pnl-pos' : 'pnl-neg';
+
+  setContent(`
+    <div class="finam-bar">
+      <span class="finam-status ok">● Finam: ${clientId}</span>
+      <button onclick="renderPortfolio()">↻ Обновить</button>
+      <button onclick="openFinamModal()">Настройки</button>
+      <button onclick="disconnectFinam()" style="color:var(--muted)">Отключить</button>
+      <span style="margin-left:auto;font-size:11px">
+        Итого P&amp;L: <span class="${grandCls}" style="font-weight:700">${Number(grandPnl).toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+      </span>
+    </div>
+    <div class="ptable-wrap">
+      <table class="ptable">
+        <thead>
+          <tr>
+            <th style="text-align:left">Тикер</th>
+            <th>Позиция</th>
+            <th>Кол-во</th>
+            <th>Ср. цена</th>
+            <th>Тек. цена</th>
+            <th>P&amp;L</th>
+            <th style="text-align:left">Название</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`);
 }
 
-function deletePosition(id) {
-  const portfolio = loadPortfolio().filter(p => p.id !== id);
-  savePortfolio(portfolio);
-  updatePortCnt();
-  renderPortfolio();
+function updatePortCnt(n) {
+  const cnt = document.getElementById('portCnt');
+  if (n === undefined) {
+    const { token } = getFinamCreds();
+    cnt.textContent = token ? '…' : '';
+  } else {
+    cnt.textContent = n || '';
+  }
 }
 
 init();
