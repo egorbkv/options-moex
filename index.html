@@ -333,21 +333,23 @@
 <div class="modal-overlay hidden" id="finamModal" onclick="if(event.target===this)closeFinamModal()">
   <div class="modal-box">
     <div class="modal-title">Подключить Finam Trade</div>
-    <div class="modal-sub">Токен и ID клиента хранятся только в браузере</div>
+    <div class="modal-sub">Данные хранятся только в браузере</div>
     <div class="modal-field">
       <label>API-токен</label>
-      <input type="text" id="finamTokenInput" placeholder="Вставьте токен из Finam Trade" style="width:100%;padding:7px 10px;font-size:12px;background:var(--card);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:inherit">
+      <input type="text" id="finamTokenInput" placeholder="Вставьте токен из Finam Trade" style="width:100%;padding:7px 10px;font-size:12px;background:var(--card);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:inherit" oninput="resetAccountsList()">
     </div>
-    <div class="modal-field">
-      <label>ID клиента</label>
-      <input type="text" id="finamClientInput" placeholder="Например: D12345" style="width:100%;padding:7px 10px;font-size:12px;background:var(--card);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:inherit">
+    <div class="modal-field" style="font-size:10px;color:var(--muted);margin-top:-8px;margin-bottom:4px">
+      Finam Trade → Настройки → API → Создать токен
     </div>
-    <div class="modal-field" style="font-size:10px;color:var(--muted);margin-top:-4px">
-      Токен: Finam Trade → Настройки → API → Создать токен
+    <div id="accountsField" class="modal-field" style="display:none">
+      <label>Счёт</label>
+      <select id="finamClientSelect" style="width:100%;padding:7px 10px;font-size:13px;background:var(--card);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:inherit"></select>
     </div>
+    <div id="accountsMsg" style="font-size:11px;color:var(--muted);margin-bottom:10px;min-height:18px"></div>
     <div class="modal-btns">
       <button onclick="closeFinamModal()">Отмена</button>
-      <button class="btn-primary" onclick="saveFinamSettings()">Подключить</button>
+      <button class="btn-primary" id="btnFetchAccounts" onclick="fetchAccounts()">Найти счета →</button>
+      <button class="btn-primary" id="btnConnect" style="display:none" onclick="saveFinamSettings()">Подключить</button>
     </div>
   </div>
 </div>
@@ -678,18 +680,74 @@ function getFinamCreds() {
 }
 function openFinamModal() {
   const { token, clientId } = getFinamCreds();
-  document.getElementById('finamTokenInput').value  = token;
-  document.getElementById('finamClientInput').value = clientId;
+  document.getElementById('finamTokenInput').value = token;
+  resetAccountsList();
+  if (token) {
+    // re-fetch accounts so user sees current state
+    fetchAccounts();
+  }
   document.getElementById('finamModal').classList.remove('hidden');
-  document.getElementById('finamTokenInput').focus();
+  if (!token) document.getElementById('finamTokenInput').focus();
 }
 function closeFinamModal() {
   document.getElementById('finamModal').classList.add('hidden');
 }
+function resetAccountsList() {
+  document.getElementById('accountsField').style.display = 'none';
+  document.getElementById('accountsMsg').textContent = '';
+  document.getElementById('btnConnect').style.display = 'none';
+  document.getElementById('btnFetchAccounts').style.display = '';
+}
+async function fetchAccounts() {
+  const token = document.getElementById('finamTokenInput').value.trim();
+  if (!token) { document.getElementById('accountsMsg').textContent = 'Введите токен'; return; }
+
+  const msg = document.getElementById('accountsMsg');
+  msg.style.color = 'var(--muted)';
+  msg.textContent = 'Загрузка счетов…';
+  document.getElementById('btnFetchAccounts').disabled = true;
+
+  try {
+    const r = await fetch('/finam/public/api/v1/accounts', {
+      headers: { 'X-Api-Key': token }
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const accounts = data.data?.accounts || data.accounts || [];
+
+    if (!accounts.length) {
+      msg.textContent = 'Счета не найдены. Проверьте токен.';
+      msg.style.color = 'var(--put)';
+      document.getElementById('btnFetchAccounts').disabled = false;
+      return;
+    }
+
+    const sel = document.getElementById('finamClientSelect');
+    sel.innerHTML = accounts.map(a => {
+      const id   = a.clientId   || a.ClientId   || a.id   || '';
+      const name = a.name       || a.Name       || id;
+      return `<option value="${id}">${id}${name !== id ? ' — ' + name : ''}</option>`;
+    }).join('');
+
+    // pre-select previously saved clientId
+    const { clientId } = getFinamCreds();
+    if (clientId) sel.value = clientId;
+
+    document.getElementById('accountsField').style.display = '';
+    document.getElementById('btnConnect').style.display = '';
+    document.getElementById('btnFetchAccounts').style.display = 'none';
+    msg.textContent = `Найдено счетов: ${accounts.length}`;
+    msg.style.color = 'var(--call)';
+  } catch(e) {
+    msg.textContent = `Ошибка: ${e.message}`;
+    msg.style.color = 'var(--put)';
+    document.getElementById('btnFetchAccounts').disabled = false;
+  }
+}
 function saveFinamSettings() {
   const token    = document.getElementById('finamTokenInput').value.trim();
-  const clientId = document.getElementById('finamClientInput').value.trim();
-  if (!token || !clientId) { alert('Введите токен и ID клиента'); return; }
+  const clientId = document.getElementById('finamClientSelect').value.trim();
+  if (!token || !clientId) { alert('Выберите счёт'); return; }
   localStorage.setItem('finam_token',     token);
   localStorage.setItem('finam_client_id', clientId);
   closeFinamModal();
