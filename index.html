@@ -708,8 +708,8 @@ async function fetchAccounts() {
   document.getElementById('btnFetchAccounts').disabled = true;
 
   try {
-    // Step 1: exchange secret for JWT
-    const r1 = await fetch('/finam-api/v1/sessions', {
+    // Step 1: exchange secret for JWT (call api.finam.ru directly — HTTP/2)
+    const r1 = await fetch('https://api.finam.ru/v1/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ secret })
@@ -722,7 +722,7 @@ async function fetchAccounts() {
     msg.textContent = 'Загрузка счетов…';
 
     // Step 2: get account list from token details
-    const r2 = await fetch('/finam-api/v1/sessions/details', {
+    const r2 = await fetch('https://api.finam.ru/v1/sessions/details', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: jwt })
