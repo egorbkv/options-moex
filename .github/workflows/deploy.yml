@@ -19,7 +19,4 @@ jobs:
           script: |
             cd /var/www/options-moex
             git pull origin master
-            sudo cp nginx.conf /etc/nginx/sites-available/options-moex
-            sudo ln -sf /etc/nginx/sites-available/options-moex /etc/nginx/sites-enabled/options-moex
-            sudo nginx -t && sudo systemctl reload nginx
             echo "✅ Deployed successfully"
