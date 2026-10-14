@@ -336,20 +336,22 @@
     <div class="modal-sub">Данные хранятся только в браузере</div>
     <div class="modal-field">
       <label>API-токен</label>
-      <input type="text" id="finamTokenInput" placeholder="Вставьте токен из Finam Trade" style="width:100%;padding:7px 10px;font-size:12px;background:var(--card);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:inherit" oninput="resetAccountsList()">
+      <input type="text" id="finamTokenInput" placeholder="Вставьте токен из Finam Trade" style="width:100%;padding:7px 10px;font-size:12px;background:var(--card);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:inherit">
     </div>
     <div class="modal-field" style="font-size:10px;color:var(--muted);margin-top:-8px;margin-bottom:4px">
       Finam Trade → Настройки → API → Создать токен
     </div>
-    <div id="accountsField" class="modal-field" style="display:none">
-      <label>Счёт</label>
-      <select id="finamClientSelect" style="width:100%;padding:7px 10px;font-size:13px;background:var(--card);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:inherit"></select>
+    <div class="modal-field">
+      <label>ID клиента</label>
+      <input type="text" id="finamClientInput" placeholder="Например: 12345" style="width:100%;padding:7px 10px;font-size:12px;background:var(--card);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:inherit">
     </div>
-    <div id="accountsMsg" style="font-size:11px;color:var(--muted);margin-bottom:10px;min-height:18px"></div>
+    <div class="modal-field" style="font-size:10px;color:var(--muted);margin-top:-8px;margin-bottom:4px">
+      Цифры из кода счёта — например, для КЛФ<b>12345</b> введите <b>12345</b>.<br>
+      Видно в шапке Finam Trade рядом с именем счёта.
+    </div>
     <div class="modal-btns">
       <button onclick="closeFinamModal()">Отмена</button>
-      <button class="btn-primary" id="btnFetchAccounts" onclick="fetchAccounts()">Найти счета →</button>
-      <button class="btn-primary" id="btnConnect" style="display:none" onclick="saveFinamSettings()">Подключить</button>
+      <button class="btn-primary" onclick="saveFinamSettings()">Подключить</button>
     </div>
   </div>
 </div>
@@ -680,12 +682,8 @@ function getFinamCreds() {
 }
 function openFinamModal() {
   const { token, clientId } = getFinamCreds();
-  document.getElementById('finamTokenInput').value = token;
-  resetAccountsList();
-  if (token) {
-    // re-fetch accounts so user sees current state
-    fetchAccounts();
-  }
+  document.getElementById('finamTokenInput').value  = token;
+  document.getElementById('finamClientInput').value = clientId;
   document.getElementById('finamModal').classList.remove('hidden');
   if (!token) document.getElementById('finamTokenInput').focus();
 }
@@ -763,8 +761,8 @@ async function fetchAccounts() {
 }
 function saveFinamSettings() {
   const token    = document.getElementById('finamTokenInput').value.trim();
-  const clientId = document.getElementById('finamClientSelect').value.trim();
-  if (!token || !clientId) { alert('Выберите счёт'); return; }
+  const clientId = document.getElementById('finamClientInput').value.trim();
+  if (!token || !clientId) { alert('Введите токен и ID клиента'); return; }
   localStorage.setItem('finam_token',     token);
   localStorage.setItem('finam_client_id', clientId);
   closeFinamModal();
