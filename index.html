@@ -699,21 +699,38 @@ function resetAccountsList() {
   document.getElementById('btnFetchAccounts').style.display = '';
 }
 async function fetchAccounts() {
-  const token = document.getElementById('finamTokenInput').value.trim();
-  if (!token) { document.getElementById('accountsMsg').textContent = 'Введите токен'; return; }
+  const secret = document.getElementById('finamTokenInput').value.trim();
+  if (!secret) { document.getElementById('accountsMsg').textContent = 'Введите токен'; return; }
 
   const msg = document.getElementById('accountsMsg');
   msg.style.color = 'var(--muted)';
-  msg.textContent = 'Загрузка счетов…';
+  msg.textContent = 'Получение JWT…';
   document.getElementById('btnFetchAccounts').disabled = true;
 
   try {
-    const r = await fetch('/finam/public/api/v1/accounts', {
-      headers: { 'X-Api-Key': token }
+    // Step 1: exchange secret for JWT
+    const r1 = await fetch('/finam-api/v1/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret })
     });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const data = await r.json();
-    const accounts = data.data?.accounts || data.accounts || [];
+    if (!r1.ok) throw new Error(`Авторизация: HTTP ${r1.status}`);
+    const session = await r1.json();
+    const jwt = session.token || session.data?.token;
+    if (!jwt) throw new Error('JWT не получен');
+
+    msg.textContent = 'Загрузка счетов…';
+
+    // Step 2: get account list from token details
+    const r2 = await fetch('/finam-api/v1/sessions/details', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: jwt })
+    });
+    if (!r2.ok) throw new Error(`Детали сессии: HTTP ${r2.status}`);
+    const details = await r2.json();
+    // accounts may be under data.accounts or accounts
+    const accounts = details.data?.accounts || details.accounts || [];
 
     if (!accounts.length) {
       msg.textContent = 'Счета не найдены. Проверьте токен.';
@@ -724,8 +741,8 @@ async function fetchAccounts() {
 
     const sel = document.getElementById('finamClientSelect');
     sel.innerHTML = accounts.map(a => {
-      const id   = a.clientId   || a.ClientId   || a.id   || '';
-      const name = a.name       || a.Name       || id;
+      const id   = a.clientId || a.ClientId || a.id || a.account_id || '';
+      const name = a.name     || a.Name     || id;
       return `<option value="${id}">${id}${name !== id ? ' — ' + name : ''}</option>`;
     }).join('');
 
