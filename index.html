@@ -925,10 +925,8 @@ async function renderPortfolio() {
     return m ? m[1] : sym.slice(0, 4);
   }
 
-  // CR options/futures: API price is in rubles per 1 CNY; 1 contract = 1000 CNY,
-  // so multiply price by 1000 to get rubles per contract (same unit as all other instruments)
   function crLotMult(symbol) {
-    return /^CR/i.test(symbol.replace(/@.*$/, '')) ? 1000 : 1;
+    return 1;
   }
 
   // Fetch greeks for all positions in parallel
