@@ -826,11 +826,10 @@ async function renderPortfolio() {
     return;
   }
 
-  // Filter: non-zero quantity, FORTS instruments only
+  // Filter: non-zero quantity only
   const opts = positions.filter(p => {
     const qty = Number(p.quantity?.value ?? p.balance ?? 0);
-    if (!qty) return false;
-    return !p.symbol || p.symbol.includes('@FORTS') || p.symbol.includes('FORTS');
+    return qty !== 0;
   });
 
   updatePortCnt(opts.length);
