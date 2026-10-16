@@ -223,6 +223,7 @@
     .pg-header:first-child td { border-top: none; }
     .pg-total td { border-top: 1px solid var(--border); padding: 4px 10px;
       text-align: right; color: var(--text); font-weight: 700; background: rgba(91,156,246,.05); }
+    .pg-subtotal td { background: rgba(255,255,255,.02); border-top: 1px dashed var(--border); padding: 3px 10px; }
     .pg-asset { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 1px; }
     .pg-cnt { color: var(--muted); font-size: 10px; margin-left: 10px; }
 
@@ -850,6 +851,11 @@ async function renderPortfolio() {
     return m ? m[1] : sym.slice(0, 4);
   }
 
+  // CNY futures (CR) prices are 1000× the ruble value — same as options board
+  function priceLotDiv(symbol) {
+    return /^CR/i.test(symbol.replace(/@.*$/, '')) ? 1000 : 1;
+  }
+
   const groups = {};
   opts.forEach(p => {
     const key = getUnderlying(p);
@@ -859,9 +865,10 @@ async function renderPortfolio() {
   const COLS = 8;
   let rows = '';
   let grandPnl = 0;
+  let grandTotal = 0;
 
   Object.entries(groups).forEach(([underlying, positions]) => {
-    const groupPnl = positions.reduce((s, p) => s + Number(p.unrealized_pnl?.value ?? p.unrealizedPnl ?? 0), 0);
+    const groupPnl   = positions.reduce((s, p) => s + Number(p.unrealized_pnl?.value ?? p.unrealizedPnl ?? 0), 0);
     grandPnl += groupPnl;
     const pnlCls = groupPnl >= 0 ? 'pnl-pos' : 'pnl-neg';
 
@@ -873,13 +880,16 @@ async function renderPortfolio() {
       </td>
     </tr>`;
 
+    let groupTotal = 0;
     positions.forEach(p => {
       const sym      = p.symbol || p.securityCode || '—';
+      const div      = priceLotDiv(sym);
       const qty      = Number(p.quantity?.value   ?? p.balance ?? 0);
-      const avgPrice = Number(p.average_price?.value ?? p.averagePrice ?? 0);
-      const curPrice = Number(p.current_price?.value ?? p.currentPrice ?? 0);
+      const avgPrice = Number(p.average_price?.value ?? p.averagePrice ?? 0) / div;
+      const curPrice = Number(p.current_price?.value ?? p.currentPrice ?? 0) / div;
       const pnl      = Number(p.unrealized_pnl?.value ?? p.unrealizedPnl ?? 0);
       const total    = Math.abs(qty) * curPrice;
+      groupTotal += total;
       const dirLabel = qty > 0 ? 'Куплено' : 'Продано';
       const dirCls   = qty > 0 ? 'vb' : 'va';
       const pnlCls   = pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
@@ -896,6 +906,14 @@ async function renderPortfolio() {
         <td style="color:var(--muted);font-size:10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sym}</td>
       </tr>`;
     });
+
+    grandTotal += groupTotal;
+    rows += `<tr class="pg-subtotal">
+      <td colspan="5" style="text-align:right;color:var(--muted);font-size:10px">Итого по группе:</td>
+      <td style="font-weight:600">${fmtF(groupTotal)}</td>
+      <td class="${pnlCls}" style="font-weight:600">${fmtF(groupPnl)}</td>
+      <td></td>
+    </tr>`;
   });
 
   const grandCls = grandPnl >= 0 ? 'pnl-pos' : 'pnl-neg';
@@ -906,8 +924,9 @@ async function renderPortfolio() {
       <button onclick="renderPortfolio()">↻ Обновить</button>
       <button onclick="openFinamModal()">Настройки</button>
       <button onclick="disconnectFinam()" style="color:var(--muted)">Отключить</button>
-      <span style="margin-left:auto;font-size:11px">
-        Итого P&amp;L: <span class="${grandCls}" style="font-weight:700">${Number(grandPnl).toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+      <span style="margin-left:auto;font-size:11px;display:flex;gap:16px">
+        <span>Сумма: <b>${fmtF(grandTotal)}</b></span>
+        <span>P&amp;L: <span class="${grandCls}" style="font-weight:700">${fmtF(grandPnl)}</span></span>
       </span>
     </div>
     <div class="ptable-wrap">
