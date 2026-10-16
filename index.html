@@ -867,8 +867,7 @@ async function fetchOptionGreeks(symbol) {
     if (!iv) { _greeksCache[base] = null; return null; }
 
     const g = _black76(F, K, T, iv, type);
-    // store F, K, type so caller can compute intrinsic/time value
-    g.F = F; g.K = K; g.type = type;
+    g.F = F; g.K = K; g.type = type; g.theoPx = optPrice;
     _greeksCache[base] = g;
     return g;
   } catch { _greeksCache[base] = null; return null; }
@@ -978,12 +977,12 @@ async function renderPortfolio() {
       const mult     = crLotMult(sym);
       const qty      = Number(p.quantity?.value   ?? p.balance ?? 0);
       const curPrice = Number(p.current_price?.value ?? p.currentPrice ?? 0) * mult;
-      const avgPrice = Number(p.average_price?.value ?? p.averagePrice ?? 0) * mult;
       const pnl      = Number(p.unrealized_pnl?.value ?? p.unrealizedPnl ?? 0);
       const total    = Math.abs(qty) * curPrice;
       groupTotal += total;
 
       const g        = greeksMap[sym] || {};
+      const theoPx   = g.theoPx != null ? g.theoPx : null;
       const posDelta = g.delta != null ? g.delta * qty : null;
       const posTheta = g.theta != null ? g.theta * qty : null;
       const posVega  = g.vega  != null ? g.vega  * qty : null;
@@ -1008,7 +1007,7 @@ async function renderPortfolio() {
         <td>${ticker}</td>
         <td><span class="${dirCls}">${dirLabel}</span></td>
         <td>${Math.abs(qty)}</td>
-        <td>${avgPrice ? fmtF(avgPrice) : '<span class="v0">—</span>'}</td>
+        <td>${theoPx != null ? fmtF(theoPx) : '<span class="v0">—</span>'}</td>
         <td style="color:var(--accent)">${fmtF(curPrice)}</td>
         <td>${fmtF(total)}</td>
         <td class="${pnlCls}">${fmtF(pnl)}</td>
@@ -1063,7 +1062,7 @@ async function renderPortfolio() {
             <th style="text-align:left">Тикер</th>
             <th>Позиция</th>
             <th>Кол-во</th>
-            <th>Ср. цена</th>
+            <th>Теор. цена</th>
             <th>Тек. цена</th>
             <th>Сумма</th>
             <th>P&amp;L</th>
