@@ -950,6 +950,7 @@ async function renderPortfolio() {
   let grandPnl       = 0;
   let grandTotal     = 0;
   let grandDelta     = 0;
+  let grandTheta     = 0;
   let grandIntrinsic = 0;
   let grandTimeVal   = 0;
 
@@ -968,6 +969,7 @@ async function renderPortfolio() {
 
     let groupTotal     = 0;
     let groupDelta     = 0;
+    let groupTheta     = 0;
     let groupIntrinsic = 0;
     let groupTimeVal   = 0;
     const fmtG = (v, d=2) => v != null && isFinite(v) ? v.toFixed(d) : '<span class="v0">—</span>';
@@ -987,6 +989,7 @@ async function renderPortfolio() {
       const posTheta = g.theta != null ? g.theta * qty : null;
       const posVega  = g.vega  != null ? g.vega  * qty : null;
       if (posDelta != null) groupDelta += posDelta;
+      if (posTheta != null) groupTheta += posTheta;
 
       // intrinsic value (per contract) and time value
       let intrinsic = null, timeVal = null;
@@ -1021,6 +1024,7 @@ async function renderPortfolio() {
 
     grandTotal     += groupTotal;
     grandDelta     += groupDelta;
+    grandTheta     += groupTheta;
     grandIntrinsic += groupIntrinsic;
     grandTimeVal   += groupTimeVal;
     rows += `<tr class="pg-subtotal">
@@ -1028,7 +1032,8 @@ async function renderPortfolio() {
       <td style="font-weight:600">${fmtF(groupTotal)}</td>
       <td class="${pnlCls}" style="font-weight:600">${fmtF(groupPnl)}</td>
       <td style="font-weight:600;font-size:11px">${groupDelta !== 0 ? groupDelta.toFixed(2) : ''}</td>
-      <td colspan="2"></td>
+      <td style="font-weight:600;font-size:11px;color:var(--muted)">${groupTheta !== 0 ? groupTheta.toFixed(1) : ''}</td>
+      <td></td>
       <td style="font-weight:600;font-size:11px;color:#4a9eff">${groupIntrinsic > 0 ? fmtF(groupIntrinsic) : ''}</td>
       <td style="font-weight:600;font-size:11px;color:#f0a830">${groupTimeVal > 0 ? fmtF(groupTimeVal) : ''}</td>
       <td></td>
@@ -1047,6 +1052,7 @@ async function renderPortfolio() {
         <span>Сумма: <b>${fmtF(grandTotal)}</b></span>
         <span>P&amp;L: <span class="${grandCls}" style="font-weight:700">${fmtF(grandPnl)}</span></span>
         <span>Δ: <b>${grandDelta.toFixed(2)}</b></span>
+        <span title="Дневной распад временной стоимости всего портфеля">Θ/день: <b style="color:${grandTheta < 0 ? '#e05' : '#4c4'}">${grandTheta.toFixed(1)} руб</b></span>
         <span style="color:#4a9eff">Внутр.: <b>${fmtF(grandIntrinsic)}</b></span>
         <span style="color:#f0a830">Врем.: <b>${fmtF(grandTimeVal)}</b></span>
       </span>
