@@ -859,7 +859,7 @@ async function fetchOptionGreeks(symbol) {
     const K        = Number(sg('STRIKE'));
     const F        = Number(sg('UNDERLYINGSETTLEPRICE'));
     const expStr   = sg('LASTTRADEDATE');
-    const optPrice = Number(mg('LAST') ?? mg('SETTLEPRICE') ?? sg('SETTLEPRICE_CLR'));
+    const optPrice = mg('LAST') || mg('SETTLEPRICE') || Number(sg('SETTLEPRICE_CLR'));
     if (!type || !K || !F || !expStr || !optPrice) { _greeksCache[base] = null; return null; }
 
     const T  = (new Date(expStr) - Date.now()) / (1000 * 86400 * 365);
