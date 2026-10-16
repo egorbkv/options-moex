@@ -336,22 +336,20 @@
     <div class="modal-sub">Данные хранятся только в браузере</div>
     <div class="modal-field">
       <label>API-токен</label>
-      <input type="text" id="finamTokenInput" placeholder="Вставьте токен из Finam Trade" style="width:100%;padding:7px 10px;font-size:12px;background:var(--card);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:inherit">
+      <input type="text" id="finamTokenInput" placeholder="tapi_sk_..." style="width:100%;padding:7px 10px;font-size:12px;background:var(--card);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:inherit" oninput="resetAccountsList()">
     </div>
     <div class="modal-field" style="font-size:10px;color:var(--muted);margin-top:-8px;margin-bottom:4px">
-      Finam Trade → Настройки → API → Создать токен
+      api.finam.ru → Войти → Настройки → API → Создать токен
     </div>
-    <div class="modal-field">
-      <label>ID клиента</label>
-      <input type="text" id="finamClientInput" placeholder="Например: 12345" style="width:100%;padding:7px 10px;font-size:12px;background:var(--card);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:inherit">
+    <div id="accountsField" class="modal-field" style="display:none">
+      <label>Счёт</label>
+      <select id="finamClientSelect" style="width:100%;padding:7px 10px;font-size:13px;background:var(--card);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:inherit"></select>
     </div>
-    <div class="modal-field" style="font-size:10px;color:var(--muted);margin-top:-8px;margin-bottom:4px">
-      Цифры из кода счёта — например, для КЛФ<b>12345</b> введите <b>12345</b>.<br>
-      Видно в шапке Finam Trade рядом с именем счёта.
-    </div>
+    <div id="accountsMsg" style="font-size:11px;color:var(--muted);margin-bottom:10px;min-height:18px"></div>
     <div class="modal-btns">
       <button onclick="closeFinamModal()">Отмена</button>
-      <button class="btn-primary" onclick="saveFinamSettings()">Подключить</button>
+      <button class="btn-primary" id="btnFetchAccounts" onclick="fetchAccounts()">Найти счета →</button>
+      <button class="btn-primary" id="btnConnect" style="display:none" onclick="saveFinamSettings()">Подключить</button>
     </div>
   </div>
 </div>
@@ -682,8 +680,9 @@ function getFinamCreds() {
 }
 function openFinamModal() {
   const { token, clientId } = getFinamCreds();
-  document.getElementById('finamTokenInput').value  = token;
-  document.getElementById('finamClientInput').value = clientId;
+  document.getElementById('finamTokenInput').value = token;
+  resetAccountsList();
+  if (token) fetchAccounts();
   document.getElementById('finamModal').classList.remove('hidden');
   if (!token) document.getElementById('finamTokenInput').focus();
 }
@@ -739,8 +738,8 @@ async function fetchAccounts() {
 
     const sel = document.getElementById('finamClientSelect');
     sel.innerHTML = accounts.map(a => {
-      const id   = a.clientId || a.ClientId || a.id || a.account_id || '';
-      const name = a.name     || a.Name     || id;
+      const id   = a.account_id || a.accountId || a.clientId || a.id || '';
+      const name = a.name || a.type || id;
       return `<option value="${id}">${id}${name !== id ? ' — ' + name : ''}</option>`;
     }).join('');
 
@@ -761,8 +760,8 @@ async function fetchAccounts() {
 }
 function saveFinamSettings() {
   const token    = document.getElementById('finamTokenInput').value.trim();
-  const clientId = document.getElementById('finamClientInput').value.trim();
-  if (!token || !clientId) { alert('Введите токен и ID клиента'); return; }
+  const clientId = document.getElementById('finamClientSelect').value.trim();
+  if (!token || !clientId) { alert('Выберите счёт'); return; }
   localStorage.setItem('finam_token',     token);
   localStorage.setItem('finam_client_id', clientId);
   closeFinamModal();
@@ -776,12 +775,27 @@ function disconnectFinam() {
 }
 
 /* ── FINAM API ── */
-async function fetchFinamPositions(token, clientId) {
-  const url = `/finam/public/api/v1/portfolio?ClientId=${encodeURIComponent(clientId)}&Content.IncludePositions=true&Content.IncludeSaldo=false`;
-  const r = await fetch(url, { headers: { 'X-Api-Key': token } });
-  if (!r.ok) throw new Error(`Finam API: HTTP ${r.status}`);
+async function getFinamJwt(secret) {
+  const r = await fetch('https://api.finam.ru/v1/sessions', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({secret})
+  });
+  if (!r.ok) throw new Error(`Авторизация: HTTP ${r.status}`);
+  const d = await r.json();
+  const jwt = d.token || d.data?.token;
+  if (!jwt) throw new Error('JWT не получен');
+  return jwt;
+}
+
+async function fetchFinamPositions(secret, accountId) {
+  const jwt = await getFinamJwt(secret);
+  const r = await fetch(`https://api.finam.ru/v1/accounts/${encodeURIComponent(accountId)}`, {
+    headers: {'Authorization': jwt}
+  });
+  if (!r.ok) throw new Error(`Портфель: HTTP ${r.status}`);
   const data = await r.json();
-  return (data.data?.positions || data.positions || []);
+  return data.positions || data.data?.positions || [];
 }
 
 function fmtF(v, dec = 2) {
@@ -816,12 +830,11 @@ async function renderPortfolio() {
     return;
   }
 
-  // Filter: non-zero balance, FORTS market (14) or all if market field absent
+  // Filter: non-zero quantity, FORTS instruments only
   const opts = positions.filter(p => {
-    const bal = Number(p.balance ?? p.Balance ?? 0);
-    if (!bal) return false;
-    const mkt = p.market ?? p.Market;
-    return mkt === undefined || mkt === 14 || mkt === 'Forts' || mkt === 'FuturesAndOptions';
+    const qty = Number(p.quantity?.value ?? p.balance ?? 0);
+    if (!qty) return false;
+    return !p.symbol || p.symbol.includes('@FORTS') || p.symbol.includes('FORTS');
   });
 
   updatePortCnt(opts.length);
@@ -835,12 +848,11 @@ async function renderPortfolio() {
     return;
   }
 
-  // Group by underlying (parse from securityCode or securityName)
+  // Group by underlying (parse from symbol, e.g. "SBRM5C25000@FORTS" → "SBR")
   function getUnderlying(p) {
-    const code = p.securityCode || p.SecurityCode || '';
-    // MOEX option codes start with underlying: Si, Ri, GAZP, SBER etc.
-    const m = code.match(/^([A-Za-z]+\d*[A-Za-z]*)/);
-    return m ? m[1].replace(/\d.*$/, '') : code.slice(0, 4);
+    const sym = (p.symbol || p.securityCode || p.SecurityCode || '').replace(/@.*$/, '');
+    const m = sym.match(/^([A-Za-z]{2,4})/);
+    return m ? m[1] : sym.slice(0, 4);
   }
 
   const groups = {};
@@ -854,7 +866,7 @@ async function renderPortfolio() {
   let grandPnl = 0;
 
   Object.entries(groups).forEach(([underlying, positions]) => {
-    const groupPnl = positions.reduce((s, p) => s + Number(p.unrealizedPnl ?? p.UnrealizedPnl ?? 0), 0);
+    const groupPnl = positions.reduce((s, p) => s + Number(p.unrealized_pnl?.value ?? p.unrealizedPnl ?? 0), 0);
     grandPnl += groupPnl;
     const pnlCls = groupPnl >= 0 ? 'pnl-pos' : 'pnl-neg';
 
@@ -867,24 +879,25 @@ async function renderPortfolio() {
     </tr>`;
 
     positions.forEach(p => {
-      const code     = p.securityCode  || p.SecurityCode  || '—';
-      const name     = p.securityName  || p.SecurityName  || '';
-      const balance  = Number(p.balance ?? p.Balance ?? 0);
-      const avgPrice = Number(p.averagePrice  ?? p.AveragePrice  ?? 0);
-      const curPrice = Number(p.currentPrice  ?? p.CurrentPrice  ?? 0);
-      const pnl      = Number(p.unrealizedPnl ?? p.UnrealizedPnl ?? 0);
-      const dirLabel = balance > 0 ? 'Куплено' : 'Продано';
-      const dirCls   = balance > 0 ? 'vb' : 'va';
+      const sym      = p.symbol || p.securityCode || '—';
+      const qty      = Number(p.quantity?.value   ?? p.balance ?? 0);
+      const avgPrice = Number(p.average_price?.value ?? p.averagePrice ?? 0);
+      const curPrice = Number(p.current_price?.value ?? p.currentPrice ?? 0);
+      const pnl      = Number(p.unrealized_pnl?.value ?? p.unrealizedPnl ?? 0);
+      const dirLabel = qty > 0 ? 'Куплено' : 'Продано';
+      const dirCls   = qty > 0 ? 'vb' : 'va';
       const pnlCls   = pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
+      // strip exchange suffix for display
+      const ticker   = sym.replace(/@.*$/, '');
 
       rows += `<tr>
-        <td title="${name}">${code}</td>
+        <td>${ticker}</td>
         <td><span class="${dirCls}">${dirLabel}</span></td>
-        <td>${Math.abs(balance)}</td>
+        <td>${Math.abs(qty)}</td>
         <td>${fmtF(avgPrice)}</td>
         <td style="color:var(--accent)">${fmtF(curPrice)}</td>
         <td class="${pnlCls}">${fmtF(pnl)}</td>
-        <td style="color:var(--muted);font-size:10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</td>
+        <td style="color:var(--muted);font-size:10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sym}</td>
       </tr>`;
     });
   });
