@@ -925,8 +925,9 @@ async function renderPortfolio() {
     return m ? m[1] : sym.slice(0, 4);
   }
 
+  // CR options: price from API is rubles per 1 CNY; 1 lot = 1000 CNY
   function crLotMult(symbol) {
-    return 1;
+    return /^CR/i.test(symbol.replace(/@.*$/, '')) ? 1000 : 1;
   }
 
   // Fetch greeks for all positions in parallel
