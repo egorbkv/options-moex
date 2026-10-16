@@ -726,10 +726,10 @@ async function fetchAccounts() {
     });
     if (!r2.ok) throw new Error(`Детали сессии: HTTP ${r2.status}`);
     const details = await r2.json();
-    // accounts may be under data.accounts or accounts
-    const accounts = details.data?.accounts || details.accounts || [];
+    // response has account_ids: string[]
+    const accountIds = details.account_ids || details.data?.account_ids || [];
 
-    if (!accounts.length) {
+    if (!accountIds.length) {
       msg.textContent = 'Счета не найдены. Проверьте токен.';
       msg.style.color = 'var(--put)';
       document.getElementById('btnFetchAccounts').disabled = false;
@@ -737,11 +737,7 @@ async function fetchAccounts() {
     }
 
     const sel = document.getElementById('finamClientSelect');
-    sel.innerHTML = accounts.map(a => {
-      const id   = a.account_id || a.accountId || a.clientId || a.id || '';
-      const name = a.name || a.type || id;
-      return `<option value="${id}">${id}${name !== id ? ' — ' + name : ''}</option>`;
-    }).join('');
+    sel.innerHTML = accountIds.map(id => `<option value="${id}">${id}</option>`).join('');
 
     // pre-select previously saved clientId
     const { clientId } = getFinamCreds();
