@@ -867,6 +867,8 @@ async function fetchOptionGreeks(symbol) {
     if (!iv) { _greeksCache[base] = null; return null; }
 
     const g = _black76(F, K, T, iv, type);
+    // store F, K, type so caller can compute intrinsic/time value
+    g.F = F; g.K = K; g.type = type;
     _greeksCache[base] = g;
     return g;
   } catch { _greeksCache[base] = null; return null; }
@@ -943,7 +945,7 @@ async function renderPortfolio() {
     (groups[key] = groups[key] || []).push(p);
   });
 
-  const COLS = 11;
+  const COLS = 13;
   let rows = '';
   let grandPnl   = 0;
   let grandTotal = 0;
@@ -982,6 +984,13 @@ async function renderPortfolio() {
       const posVega  = g.vega  != null ? g.vega  * qty : null;
       if (posDelta != null) groupDelta += posDelta;
 
+      // intrinsic value (per contract) and time value
+      let intrinsic = null, timeVal = null;
+      if (g.F != null && g.K != null && g.type && curPrice > 0) {
+        intrinsic = g.type === 'C' ? Math.max(0, g.F - g.K) : Math.max(0, g.K - g.F);
+        timeVal   = Math.max(0, curPrice - intrinsic);
+      }
+
       const dirLabel = qty > 0 ? 'Куплено' : 'Продано';
       const dirCls   = qty > 0 ? 'vb' : 'va';
       const pnlCls   = pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
@@ -998,7 +1007,9 @@ async function renderPortfolio() {
         <td style="font-size:11px">${fmtG(posDelta)}</td>
         <td style="font-size:11px;color:var(--muted)">${fmtG(posTheta, 1)}</td>
         <td style="font-size:11px;color:var(--muted)">${fmtG(posVega, 1)}</td>
-        <td style="color:var(--muted);font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sym}</td>
+        <td style="font-size:11px;color:#4a9eff" title="Внутренняя стоимость = макс(0, F−K) или макс(0, K−F)">${intrinsic != null ? fmtF(intrinsic) : '<span class="v0">—</span>'}</td>
+        <td style="font-size:11px;color:#f0a830" title="Временная стоимость = цена − внутренняя">${timeVal != null ? fmtF(timeVal) : '<span class="v0">—</span>'}</td>
+        <td style="color:var(--muted);font-size:10px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sym}</td>
       </tr>`;
     });
 
@@ -1010,7 +1021,7 @@ async function renderPortfolio() {
       <td style="font-weight:600">${fmtF(groupTotal)}</td>
       <td class="${pnlCls}" style="font-weight:600">${fmtF(groupPnl)}</td>
       <td style="font-weight:600;font-size:11px">${groupDelta !== 0 ? groupDelta.toFixed(2) : ''}</td>
-      <td colspan="3"></td>
+      <td colspan="5"></td>
     </tr>`;
   });
 
@@ -1042,6 +1053,8 @@ async function renderPortfolio() {
             <th title="Позиционная дельта = Δ × qty">Δ</th>
             <th title="Позиционная тета = Θ × qty (руб/день)">Θ</th>
             <th title="Позиционная вега = ν × qty (руб/1% IV)">ν</th>
+            <th title="Внутренняя стоимость = макс(0, F−K)">Внутр.</th>
+            <th title="Временная стоимость = цена − внутренняя">Врем.</th>
             <th style="text-align:left">Тикер полный</th>
           </tr>
         </thead>
