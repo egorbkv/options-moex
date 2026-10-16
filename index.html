@@ -856,7 +856,7 @@ async function renderPortfolio() {
     (groups[key] = groups[key] || []).push(p);
   });
 
-  const COLS = 7;
+  const COLS = 8;
   let rows = '';
   let grandPnl = 0;
 
@@ -879,18 +879,19 @@ async function renderPortfolio() {
       const avgPrice = Number(p.average_price?.value ?? p.averagePrice ?? 0);
       const curPrice = Number(p.current_price?.value ?? p.currentPrice ?? 0);
       const pnl      = Number(p.unrealized_pnl?.value ?? p.unrealizedPnl ?? 0);
+      const total    = Math.abs(qty) * curPrice;
       const dirLabel = qty > 0 ? 'Куплено' : 'Продано';
       const dirCls   = qty > 0 ? 'vb' : 'va';
       const pnlCls   = pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
-      // strip exchange suffix for display
       const ticker   = sym.replace(/@.*$/, '');
 
       rows += `<tr>
         <td>${ticker}</td>
         <td><span class="${dirCls}">${dirLabel}</span></td>
         <td>${Math.abs(qty)}</td>
-        <td>${fmtF(avgPrice)}</td>
+        <td>${avgPrice ? fmtF(avgPrice) : '<span class="v0">—</span>'}</td>
         <td style="color:var(--accent)">${fmtF(curPrice)}</td>
+        <td>${fmtF(total)}</td>
         <td class="${pnlCls}">${fmtF(pnl)}</td>
         <td style="color:var(--muted);font-size:10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sym}</td>
       </tr>`;
@@ -918,6 +919,7 @@ async function renderPortfolio() {
             <th>Кол-во</th>
             <th>Ср. цена</th>
             <th>Тек. цена</th>
+            <th>Сумма</th>
             <th>P&amp;L</th>
             <th style="text-align:left">Название</th>
           </tr>
