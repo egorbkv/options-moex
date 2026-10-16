@@ -787,7 +787,7 @@ async function getFinamJwt(secret) {
 async function fetchFinamPositions(secret, accountId) {
   const jwt = await getFinamJwt(secret);
   const r = await fetch(`https://api.finam.ru/v1/accounts/${encodeURIComponent(accountId)}`, {
-    headers: {'Authorization': jwt}
+    headers: {'Authorization': `Bearer ${jwt}`}
   });
   if (!r.ok) throw new Error(`Портфель: HTTP ${r.status}`);
   const data = await r.json();
