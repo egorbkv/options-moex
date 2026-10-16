@@ -793,10 +793,14 @@ async function fetchFinamPortfolio(secret, accountId) {
   if (!r.ok) throw new Error(`Портфель: HTTP ${r.status}`);
   const raw = await r.json();
   const d = raw.data ?? raw;
+  console.log('Finam account keys:', Object.keys(d));
+  console.log('Finam account (no positions):', JSON.stringify({...d, positions: '[...]'}));
   return {
     positions:        d.positions || [],
     equity:           d.equity?.value           != null ? Number(d.equity.value)           : null,
     unrealizedProfit: d.unrealized_profit?.value != null ? Number(d.unrealized_profit.value) : null,
+    free:             d.free_money?.value        != null ? Number(d.free_money.value)        :
+                      d.free?.value              != null ? Number(d.free.value)              : null,
   };
 }
 
@@ -894,12 +898,13 @@ async function renderPortfolio() {
 
   setContent('<div class="state"><div class="spinner"></div><div class="state-txt">Загрузка портфеля из Finam…</div></div>');
 
-  let positions, accountEquity = null, accountPnl = null;
+  let positions, accountEquity = null, accountPnl = null, accountFree = null;
   try {
     const port = await fetchFinamPortfolio(token, clientId);
-    positions    = port.positions;
+    positions     = port.positions;
     accountEquity = port.equity;
     accountPnl    = port.unrealizedProfit;
+    accountFree   = port.free;
   } catch(e) {
     setContent(`<div class="state">
       <div class="state-err">Ошибка Finam API: ${e.message}</div>
@@ -1055,7 +1060,7 @@ async function renderPortfolio() {
       <button onclick="openFinamModal()">Настройки</button>
       <button onclick="disconnectFinam()" style="color:var(--muted)">Отключить</button>
       <span style="margin-left:auto;font-size:11px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">
-        ${accountEquity != null ? `<span title="Оценка счёта (Финам)" style="font-size:12px;border-right:1px solid var(--border);padding-right:16px">Счёт: <b style="color:#fff;font-size:13px">${fmtF(accountEquity)}</b>${accountPnl != null ? ` <span style="color:${accountPnl >= 0 ? '#4c4' : '#e05'};font-size:11px">(${accountPnl >= 0 ? '+' : ''}${fmtF(accountPnl)})</span>` : ''}</span>` : ''}
+        ${accountEquity != null ? `<span title="Оценка счёта (Финам)" style="font-size:12px;border-right:1px solid var(--border);padding-right:16px">Счёт: <b style="color:#fff;font-size:13px">${fmtF(accountEquity)}</b>${accountPnl != null ? ` <span style="color:${accountPnl >= 0 ? '#4c4' : '#e05'};font-size:11px">(${accountPnl >= 0 ? '+' : ''}${fmtF(accountPnl)})</span>` : ''}${accountFree != null ? ` &nbsp;<span title="Свободные средства" style="color:${accountFree < 0 ? '#e05' : 'var(--muted)'}">своб.: ${fmtF(accountFree)}</span>` : ''}</span>` : ''}
         <span>Опционы: <b>${fmtF(grandTotal)}</b></span>
         <span>P&amp;L: <span class="${grandCls}" style="font-weight:700">${fmtF(grandPnl)}</span></span>
         <span>Δ: <b>${grandDelta.toFixed(2)}</b></span>
