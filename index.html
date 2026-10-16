@@ -851,8 +851,9 @@ async function renderPortfolio() {
     return m ? m[1] : sym.slice(0, 4);
   }
 
-  // CNY futures (CR) prices are 1000× the ruble value — same as options board
-  function priceLotDiv(symbol) {
+  // CNY futures (CR): API returns price in rubles per 1 CNY; divide by 1000 for display,
+  // but total uses raw API price (= contract value in rubles, 1 contract = 1000 CNY)
+  function priceDisplayDiv(symbol) {
     return /^CR/i.test(symbol.replace(/@.*$/, '')) ? 1000 : 1;
   }
 
@@ -883,12 +884,15 @@ async function renderPortfolio() {
     let groupTotal = 0;
     positions.forEach(p => {
       const sym      = p.symbol || p.securityCode || '—';
-      const div      = priceLotDiv(sym);
-      const qty      = Number(p.quantity?.value   ?? p.balance ?? 0);
-      const avgPrice = Number(p.average_price?.value ?? p.averagePrice ?? 0) / div;
-      const curPrice = Number(p.current_price?.value ?? p.currentPrice ?? 0) / div;
-      const pnl      = Number(p.unrealized_pnl?.value ?? p.unrealizedPnl ?? 0);
-      const total    = Math.abs(qty) * curPrice;
+      const div         = priceDisplayDiv(sym);
+      const qty         = Number(p.quantity?.value   ?? p.balance ?? 0);
+      const rawCurPrice = Number(p.current_price?.value ?? p.currentPrice ?? 0);
+      const rawAvgPrice = Number(p.average_price?.value ?? p.averagePrice ?? 0);
+      console.log('POS', sym, 'cur:', p.current_price?.value, 'qty:', p.quantity?.value);
+      const curPrice    = rawCurPrice / div;   // display: rubles per CNY for CR
+      const avgPrice    = rawAvgPrice / div;
+      const pnl         = Number(p.unrealized_pnl?.value ?? p.unrealizedPnl ?? 0);
+      const total       = Math.abs(qty) * rawCurPrice; // contract value: raw price already per-contract
       groupTotal += total;
       const dirLabel = qty > 0 ? 'Куплено' : 'Продано';
       const dirCls   = qty > 0 ? 'vb' : 'va';
