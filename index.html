@@ -800,6 +800,27 @@ function fmtF(v, dec = 2) {
   return Number(v).toLocaleString('ru-RU', {minimumFractionDigits: dec, maximumFractionDigits: dec});
 }
 
+/* ── GREEKS fetch ── */
+const _greeksCache = {};
+async function fetchOptionGreeks(symbol) {
+  const base = symbol.replace(/@.*$/, '');
+  if (_greeksCache[base] !== undefined) return _greeksCache[base];
+  try {
+    const url = `/iss/engines/futures/markets/options/boards/ROPD/securities/${encodeURIComponent(base)}.json?iss.meta=off&iss.only=marketdata&marketdata.columns=SECID,DELTA,THETA,VEGA`;
+    const r = await fetch(url);
+    if (!r.ok) { _greeksCache[base] = null; return null; }
+    const d = await r.json();
+    const cols = d.marketdata?.columns || [];
+    const rows = d.marketdata?.data   || [];
+    if (!rows.length) { _greeksCache[base] = null; return null; }
+    const row = rows[0];
+    const get = k => { const i = cols.indexOf(k); return i >= 0 ? row[i] : null; };
+    const result = { delta: get('DELTA'), theta: get('THETA'), vega: get('VEGA') };
+    _greeksCache[base] = result;
+    return result;
+  } catch { _greeksCache[base] = null; return null; }
+}
+
 /* ── PORTFOLIO view ── */
 async function renderPortfolio() {
   const { token, clientId } = getFinamCreds();
@@ -857,16 +878,25 @@ async function renderPortfolio() {
     return /^CR/i.test(symbol.replace(/@.*$/, '')) ? 1000 : 1;
   }
 
+  // Fetch greeks for all positions in parallel
+  const greeksMap = {};
+  await Promise.all(opts.map(async p => {
+    const sym = p.symbol || p.securityCode || '';
+    const g = await fetchOptionGreeks(sym);
+    if (g) greeksMap[sym] = g;
+  }));
+
   const groups = {};
   opts.forEach(p => {
     const key = getUnderlying(p);
     (groups[key] = groups[key] || []).push(p);
   });
 
-  const COLS = 8;
+  const COLS = 11;
   let rows = '';
-  let grandPnl = 0;
+  let grandPnl   = 0;
   let grandTotal = 0;
+  let grandDelta = 0;
 
   Object.entries(groups).forEach(([underlying, positions]) => {
     const groupPnl   = positions.reduce((s, p) => s + Number(p.unrealized_pnl?.value ?? p.unrealizedPnl ?? 0), 0);
@@ -882,6 +912,9 @@ async function renderPortfolio() {
     </tr>`;
 
     let groupTotal = 0;
+    let groupDelta = 0;
+    const fmtG = (v, d=2) => v != null && isFinite(v) ? v.toFixed(d) : '<span class="v0">—</span>';
+
     positions.forEach(p => {
       const sym      = p.symbol || p.securityCode || '—';
       const mult     = crLotMult(sym);
@@ -891,6 +924,13 @@ async function renderPortfolio() {
       const pnl      = Number(p.unrealized_pnl?.value ?? p.unrealizedPnl ?? 0);
       const total    = Math.abs(qty) * curPrice;
       groupTotal += total;
+
+      const g        = greeksMap[sym] || {};
+      const posDelta = g.delta != null ? g.delta * qty : null;
+      const posTheta = g.theta != null ? g.theta * qty : null;
+      const posVega  = g.vega  != null ? g.vega  * qty : null;
+      if (posDelta != null) groupDelta += posDelta;
+
       const dirLabel = qty > 0 ? 'Куплено' : 'Продано';
       const dirCls   = qty > 0 ? 'vb' : 'va';
       const pnlCls   = pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
@@ -904,16 +944,22 @@ async function renderPortfolio() {
         <td style="color:var(--accent)">${fmtF(curPrice)}</td>
         <td>${fmtF(total)}</td>
         <td class="${pnlCls}">${fmtF(pnl)}</td>
-        <td style="color:var(--muted);font-size:10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sym}</td>
+        <td style="font-size:11px">${fmtG(posDelta)}</td>
+        <td style="font-size:11px;color:var(--muted)">${fmtG(posTheta, 1)}</td>
+        <td style="font-size:11px;color:var(--muted)">${fmtG(posVega, 1)}</td>
+        <td style="color:var(--muted);font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sym}</td>
       </tr>`;
     });
 
     grandTotal += groupTotal;
+    grandDelta += groupDelta;
+    const deltaStr = groupDelta !== 0 ? ` &nbsp;Δ: <b>${groupDelta.toFixed(2)}</b>` : '';
     rows += `<tr class="pg-subtotal">
       <td colspan="5" style="text-align:right;color:var(--muted);font-size:10px">Итого по группе:</td>
       <td style="font-weight:600">${fmtF(groupTotal)}</td>
       <td class="${pnlCls}" style="font-weight:600">${fmtF(groupPnl)}</td>
-      <td></td>
+      <td style="font-weight:600;font-size:11px">${groupDelta !== 0 ? groupDelta.toFixed(2) : ''}</td>
+      <td colspan="3"></td>
     </tr>`;
   });
 
@@ -928,6 +974,7 @@ async function renderPortfolio() {
       <span style="margin-left:auto;font-size:11px;display:flex;gap:16px">
         <span>Сумма: <b>${fmtF(grandTotal)}</b></span>
         <span>P&amp;L: <span class="${grandCls}" style="font-weight:700">${fmtF(grandPnl)}</span></span>
+        <span>Δ портфеля: <b>${grandDelta.toFixed(2)}</b></span>
       </span>
     </div>
     <div class="ptable-wrap">
@@ -941,7 +988,10 @@ async function renderPortfolio() {
             <th>Тек. цена</th>
             <th>Сумма</th>
             <th>P&amp;L</th>
-            <th style="text-align:left">Название</th>
+            <th title="Позиционная дельта = Δ × qty">Δ</th>
+            <th title="Позиционная тета = Θ × qty (руб/день)">Θ</th>
+            <th title="Позиционная вега = ν × qty (руб/1% IV)">ν</th>
+            <th style="text-align:left">Тикер полный</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
