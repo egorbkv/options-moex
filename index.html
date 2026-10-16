@@ -800,24 +800,75 @@ function fmtF(v, dec = 2) {
   return Number(v).toLocaleString('ru-RU', {minimumFractionDigits: dec, maximumFractionDigits: dec});
 }
 
-/* ── GREEKS fetch ── */
+/* ── Black-76 Greeks ── */
+function _normCDF(x) {
+  const t = 1 / (1 + 0.2315419 * Math.abs(x));
+  const d = Math.exp(-x * x / 2) / Math.sqrt(2 * Math.PI);
+  const p = d * t * (0.319381530 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+  return x >= 0 ? 1 - p : p;
+}
+function _normPDF(x) { return Math.exp(-x * x / 2) / Math.sqrt(2 * Math.PI); }
+
+function _impliedVol(price, F, K, T, type) {
+  if (price <= 0 || T <= 0 || F <= 0 || K <= 0) return null;
+  let lo = 1e-4, hi = 20;
+  for (let i = 0; i < 200; i++) {
+    const mid = (lo + hi) / 2, sq = Math.sqrt(T);
+    const d1  = (Math.log(F / K) + 0.5 * mid * mid * T) / (mid * sq);
+    const d2  = d1 - mid * sq;
+    const p   = type === 'C'
+      ? F * _normCDF(d1)  - K * _normCDF(d2)
+      : K * _normCDF(-d2) - F * _normCDF(-d1);
+    if (p < price) lo = mid; else hi = mid;
+    if (hi - lo < 1e-7) break;
+  }
+  return (lo + hi) / 2;
+}
+
+function _black76(F, K, T, iv, type) {
+  if (T <= 0 || iv <= 0 || F <= 0 || K <= 0) return null;
+  const sq = Math.sqrt(T);
+  const d1 = (Math.log(F / K) + 0.5 * iv * iv * T) / (iv * sq);
+  const d2 = d1 - iv * sq;
+  return {
+    delta: type === 'C' ? _normCDF(d1) : _normCDF(d1) - 1,
+    vega:  F * _normPDF(d1) * sq / 100,          // руб. на 1% IV
+    theta: -(F * _normPDF(d1) * iv / (2 * sq)) / 365,  // руб./день
+  };
+}
+
+/* ── GREEKS fetch (1 запрос на символ, считаем Black-76 локально) ── */
 const _greeksCache = {};
 async function fetchOptionGreeks(symbol) {
   const base = symbol.replace(/@.*$/, '');
   if (_greeksCache[base] !== undefined) return _greeksCache[base];
   try {
-    const url = `/iss/engines/futures/markets/options/boards/ROPD/securities/${encodeURIComponent(base)}.json?iss.meta=off&iss.only=marketdata&marketdata.columns=SECID,DELTA,THETA,VEGA`;
+    const url = `/iss/engines/futures/markets/options/boards/ROPD/securities/${encodeURIComponent(base)}.json` +
+      `?iss.meta=off&securities.columns=SECID,OPTIONTYPE,STRIKE,LASTTRADEDATE,UNDERLYINGSETTLEPRICE,SETTLEPRICE_CLR` +
+      `&marketdata.columns=SECID,LAST,SETTLEPRICE`;
     const r = await fetch(url);
     if (!r.ok) { _greeksCache[base] = null; return null; }
     const d = await r.json();
-    const cols = d.marketdata?.columns || [];
-    const rows = d.marketdata?.data   || [];
-    if (!rows.length) { _greeksCache[base] = null; return null; }
-    const row = rows[0];
-    const get = k => { const i = cols.indexOf(k); return i >= 0 ? row[i] : null; };
-    const result = { delta: get('DELTA'), theta: get('THETA'), vega: get('VEGA') };
-    _greeksCache[base] = result;
-    return result;
+    const sc = d.securities?.columns || [], sd = d.securities?.data?.[0];
+    const mc = d.marketdata?.columns || [], md = d.marketdata?.data?.[0];
+    if (!sd) { _greeksCache[base] = null; return null; }
+    const sg = k => { const i = sc.indexOf(k); return i >= 0 ? sd[i] : null; };
+    const mg = k => { const i = mc.indexOf(k); return i >= 0 ? (md?.[i] ?? null) : null; };
+
+    const type     = sg('OPTIONTYPE');
+    const K        = Number(sg('STRIKE'));
+    const F        = Number(sg('UNDERLYINGSETTLEPRICE'));
+    const expStr   = sg('LASTTRADEDATE');
+    const optPrice = Number(mg('LAST') ?? mg('SETTLEPRICE') ?? sg('SETTLEPRICE_CLR'));
+    if (!type || !K || !F || !expStr || !optPrice) { _greeksCache[base] = null; return null; }
+
+    const T  = (new Date(expStr) - Date.now()) / (1000 * 86400 * 365);
+    const iv = _impliedVol(optPrice, F, K, T, type);
+    if (!iv) { _greeksCache[base] = null; return null; }
+
+    const g = _black76(F, K, T, iv, type);
+    _greeksCache[base] = g;
+    return g;
   } catch { _greeksCache[base] = null; return null; }
 }
 
