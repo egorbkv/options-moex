@@ -947,9 +947,11 @@ async function renderPortfolio() {
 
   const COLS = 13;
   let rows = '';
-  let grandPnl   = 0;
-  let grandTotal = 0;
-  let grandDelta = 0;
+  let grandPnl       = 0;
+  let grandTotal     = 0;
+  let grandDelta     = 0;
+  let grandIntrinsic = 0;
+  let grandTimeVal   = 0;
 
   Object.entries(groups).forEach(([underlying, positions]) => {
     const groupPnl   = positions.reduce((s, p) => s + Number(p.unrealized_pnl?.value ?? p.unrealizedPnl ?? 0), 0);
@@ -964,8 +966,10 @@ async function renderPortfolio() {
       </td>
     </tr>`;
 
-    let groupTotal = 0;
-    let groupDelta = 0;
+    let groupTotal     = 0;
+    let groupDelta     = 0;
+    let groupIntrinsic = 0;
+    let groupTimeVal   = 0;
     const fmtG = (v, d=2) => v != null && isFinite(v) ? v.toFixed(d) : '<span class="v0">—</span>';
 
     positions.forEach(p => {
@@ -989,6 +993,8 @@ async function renderPortfolio() {
       if (g.F != null && g.K != null && g.type && curPrice > 0) {
         intrinsic = g.type === 'C' ? Math.max(0, g.F - g.K) : Math.max(0, g.K - g.F);
         timeVal   = Math.max(0, curPrice - intrinsic);
+        groupIntrinsic += intrinsic * Math.abs(qty);
+        groupTimeVal   += timeVal   * Math.abs(qty);
       }
 
       const dirLabel = qty > 0 ? 'Куплено' : 'Продано';
@@ -1013,15 +1019,19 @@ async function renderPortfolio() {
       </tr>`;
     });
 
-    grandTotal += groupTotal;
-    grandDelta += groupDelta;
-    const deltaStr = groupDelta !== 0 ? ` &nbsp;Δ: <b>${groupDelta.toFixed(2)}</b>` : '';
+    grandTotal     += groupTotal;
+    grandDelta     += groupDelta;
+    grandIntrinsic += groupIntrinsic;
+    grandTimeVal   += groupTimeVal;
     rows += `<tr class="pg-subtotal">
       <td colspan="5" style="text-align:right;color:var(--muted);font-size:10px">Итого по группе:</td>
       <td style="font-weight:600">${fmtF(groupTotal)}</td>
       <td class="${pnlCls}" style="font-weight:600">${fmtF(groupPnl)}</td>
       <td style="font-weight:600;font-size:11px">${groupDelta !== 0 ? groupDelta.toFixed(2) : ''}</td>
-      <td colspan="5"></td>
+      <td colspan="2"></td>
+      <td style="font-weight:600;font-size:11px;color:#4a9eff">${groupIntrinsic > 0 ? fmtF(groupIntrinsic) : ''}</td>
+      <td style="font-weight:600;font-size:11px;color:#f0a830">${groupTimeVal > 0 ? fmtF(groupTimeVal) : ''}</td>
+      <td></td>
     </tr>`;
   });
 
@@ -1033,10 +1043,12 @@ async function renderPortfolio() {
       <button onclick="renderPortfolio()">↻ Обновить</button>
       <button onclick="openFinamModal()">Настройки</button>
       <button onclick="disconnectFinam()" style="color:var(--muted)">Отключить</button>
-      <span style="margin-left:auto;font-size:11px;display:flex;gap:16px">
+      <span style="margin-left:auto;font-size:11px;display:flex;gap:16px;flex-wrap:wrap">
         <span>Сумма: <b>${fmtF(grandTotal)}</b></span>
         <span>P&amp;L: <span class="${grandCls}" style="font-weight:700">${fmtF(grandPnl)}</span></span>
-        <span>Δ портфеля: <b>${grandDelta.toFixed(2)}</b></span>
+        <span>Δ: <b>${grandDelta.toFixed(2)}</b></span>
+        <span style="color:#4a9eff">Внутр.: <b>${fmtF(grandIntrinsic)}</b></span>
+        <span style="color:#f0a830">Врем.: <b>${fmtF(grandTimeVal)}</b></span>
       </span>
     </div>
     <div class="ptable-wrap">
