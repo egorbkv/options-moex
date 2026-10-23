@@ -997,13 +997,14 @@ async function renderPortfolio() {
       if (posDelta != null) groupDelta += posDelta;
       if (posTheta != null) groupTheta += posTheta;
 
-      // intrinsic value (per contract) and time value
-      let intrinsic = null, timeVal = null;
+      let posIntrinsic = null, posTimeVal = null;
       if (g.F != null && g.K != null && g.type && curPrice > 0) {
-        intrinsic = g.type === 'C' ? Math.max(0, g.F - g.K) : Math.max(0, g.K - g.F);
-        timeVal   = Math.max(0, curPrice - intrinsic);
-        groupIntrinsic += intrinsic * Math.abs(qty);
-        groupTimeVal   += timeVal   * Math.abs(qty);
+        const intrinsic1 = g.type === 'C' ? Math.max(0, g.F - g.K) : Math.max(0, g.K - g.F);
+        const timeVal1   = Math.max(0, curPrice - intrinsic1);
+        posIntrinsic = intrinsic1 * Math.abs(qty);
+        posTimeVal   = timeVal1   * Math.abs(qty);
+        groupIntrinsic += posIntrinsic;
+        groupTimeVal   += posTimeVal;
       }
 
       const dirLabel = qty > 0 ? 'Куплено' : 'Продано';
@@ -1022,8 +1023,8 @@ async function renderPortfolio() {
         <td style="font-size:11px">${fmtG(posDelta)}</td>
         <td style="font-size:11px;color:var(--muted)">${fmtG(posTheta, 1)}</td>
         <td style="font-size:11px;color:var(--muted)">${fmtG(posVega, 1)}</td>
-        <td style="font-size:11px;color:#4a9eff" title="Внутренняя стоимость = макс(0, F−K) или макс(0, K−F)">${intrinsic != null ? fmtF(intrinsic) : '<span class="v0">—</span>'}</td>
-        <td style="font-size:11px;color:#f0a830" title="Временная стоимость = цена − внутренняя">${timeVal != null ? fmtF(timeVal) : '<span class="v0">—</span>'}</td>
+        <td style="font-size:11px;color:#4a9eff" title="Внутренняя стоимость × кол-во">${posIntrinsic != null ? fmtF(posIntrinsic) : '<span class="v0">—</span>'}</td>
+        <td style="font-size:11px;color:#f0a830" title="Временная стоимость × кол-во">${posTimeVal != null ? fmtF(posTimeVal) : '<span class="v0">—</span>'}</td>
         <td style="color:var(--muted);font-size:10px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sym}</td>
       </tr>`;
     });
