@@ -833,17 +833,28 @@ async function fetchFinamPortfolio(secret, accountId) {
 async function fetchFinamAvgPrices(secret, accountId, symbols) {
   try {
     const jwt = await getFinamJwt(secret);
-    // date range: last 180 days should cover all open option positions
     const from = new Date(Date.now() - 180 * 86400 * 1000).toISOString().slice(0, 10);
+    // Try /v1/orders endpoint (most common in Finam REST API)
     const r = await fetch(
-      `https://api.finam.ru/v1/accounts/${encodeURIComponent(accountId)}/trades?from=${from}`,
+      `https://api.finam.ru/v1/orders?account_id=${encodeURIComponent(accountId)}&from=${from}`,
       { headers: { 'Authorization': `Bearer ${jwt}` } }
     );
-    if (!r.ok) { console.log('Trades HTTP', r.status); return {}; }
+    if (!r.ok) {
+      console.log('Orders HTTP', r.status);
+      // Try alternative: account orders sub-path
+      const r2 = await fetch(
+        `https://api.finam.ru/v1/accounts/${encodeURIComponent(accountId)}/orders?from=${from}`,
+        { headers: { 'Authorization': `Bearer ${jwt}` } }
+      );
+      if (!r2.ok) { console.log('Account orders HTTP', r2.status); return {}; }
+      const raw2 = await r2.json();
+      console.log('Account orders keys:', JSON.stringify(raw2).slice(0,300));
+      return {};
+    }
     const raw = await r.json();
-    console.log('Trades keys:', Object.keys(raw.data ?? raw));
-    const trades = (raw.data ?? raw).trades ?? (raw.data ?? raw).items ?? [];
-    console.log('Trades count:', trades.length, 'sample:', JSON.stringify(trades[0]).slice(0,200));
+    console.log('Orders response:', JSON.stringify(raw).slice(0,400));
+    const trades = (raw.data ?? raw).orders ?? (raw.data ?? raw).items ?? (raw.data ?? raw).trades ?? [];
+    console.log('Orders count:', trades.length, trades[0] ? 'sample:'+JSON.stringify(trades[0]).slice(0,200) : '');
 
     const map = {};
     for (const sym of symbols) {
