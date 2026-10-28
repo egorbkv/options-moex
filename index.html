@@ -830,6 +830,46 @@ async function fetchFinamPortfolio(secret, accountId) {
   };
 }
 
+async function fetchFinamAvgPrices(secret, accountId, symbols) {
+  try {
+    const jwt = await getFinamJwt(secret);
+    // date range: last 180 days should cover all open option positions
+    const from = new Date(Date.now() - 180 * 86400 * 1000).toISOString().slice(0, 10);
+    const r = await fetch(
+      `https://api.finam.ru/v1/accounts/${encodeURIComponent(accountId)}/trades?from=${from}`,
+      { headers: { 'Authorization': `Bearer ${jwt}` } }
+    );
+    if (!r.ok) { console.log('Trades HTTP', r.status); return {}; }
+    const raw = await r.json();
+    console.log('Trades keys:', Object.keys(raw.data ?? raw));
+    const trades = (raw.data ?? raw).trades ?? (raw.data ?? raw).items ?? [];
+    console.log('Trades count:', trades.length, 'sample:', JSON.stringify(trades[0]).slice(0,200));
+
+    const map = {};
+    for (const sym of symbols) {
+      const base = sym.replace(/@.*$/, '');
+      const symTrades = trades.filter(t => {
+        const s = (t.symbol || t.security_code || t.securityCode || '').replace(/@.*$/, '');
+        return s === base;
+      });
+      if (!symTrades.length) continue;
+      let cost = 0, qty = 0;
+      for (const t of symTrades) {
+        const price = Number(t.price?.value ?? t.price ?? 0);
+        const q     = Number(t.quantity?.value ?? t.quantity ?? 0);
+        const side  = (t.side || t.buy_sell || t.buySell || '').toUpperCase();
+        if (side.startsWith('B')) { cost += price * q; qty += q; }
+        else                      { cost -= price * q; qty -= q; }
+      }
+      if (qty > 0) map[sym] = cost / qty;
+    }
+    return map;
+  } catch(e) {
+    console.log('fetchFinamAvgPrices error:', e.message);
+    return {};
+  }
+}
+
 function fmtF(v, dec = 2) {
   if (v === null || v === undefined || v === '' || isNaN(Number(v))) return '<span class="v0">—</span>';
   return Number(v).toLocaleString('ru-RU', {minimumFractionDigits: dec, maximumFractionDigits: dec});
@@ -1065,13 +1105,17 @@ async function renderPortfolio() {
     return /^CR/i.test(symbol.replace(/@.*$/, '')) ? 1000 : 1;
   }
 
-  // Fetch greeks for all positions in parallel
+  // Fetch greeks and trade history in parallel
   const greeksMap = {};
-  await Promise.all(opts.map(async p => {
-    const sym = p.symbol || p.securityCode || '';
-    const g = await fetchOptionGreeks(sym);
-    if (g) greeksMap[sym] = g;
-  }));
+  const allSymbols = opts.map(p => p.symbol || p.securityCode || '');
+  const [, avgPriceMap] = await Promise.all([
+    Promise.all(opts.map(async p => {
+      const sym = p.symbol || p.securityCode || '';
+      const g = await fetchOptionGreeks(sym);
+      if (g) greeksMap[sym] = g;
+    })),
+    fetchFinamAvgPrices(token, clientId, allSymbols),
+  ]);
 
   const groups = {};
   opts.forEach(p => {
@@ -1116,7 +1160,8 @@ async function renderPortfolio() {
       const qty      = Number(p.quantity?.value   ?? p.balance ?? 0);
       const curPrice = Number(p.current_price?.value ?? p.currentPrice ?? 0) * mult;
       const pnl      = Number(p.unrealized_pnl?.value ?? p.unrealizedPnl ?? 0);
-      const avgPrice = qty !== 0 ? curPrice - pnl / qty : null;
+      const avgFromTrades = avgPriceMap[sym] != null ? avgPriceMap[sym] * mult : null;
+      const avgPrice = avgFromTrades ?? (qty !== 0 ? curPrice - pnl / qty : null);
       const total    = Math.abs(qty) * curPrice;
       groupTotal += total;
 
