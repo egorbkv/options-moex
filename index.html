@@ -1079,7 +1079,7 @@ async function renderPortfolio() {
     (groups[key] = groups[key] || []).push(p);
   });
 
-  const COLS = 13;
+  const COLS = 14;
   let rows = '';
   let grandPnl       = 0;
   let grandTotal     = 0;
@@ -1116,6 +1116,7 @@ async function renderPortfolio() {
       const qty      = Number(p.quantity?.value   ?? p.balance ?? 0);
       const curPrice = Number(p.current_price?.value ?? p.currentPrice ?? 0) * mult;
       const pnl      = Number(p.unrealized_pnl?.value ?? p.unrealizedPnl ?? 0);
+      const avgPrice = qty !== 0 ? curPrice - pnl / qty : null;
       const total    = Math.abs(qty) * curPrice;
       groupTotal += total;
 
@@ -1151,6 +1152,7 @@ async function renderPortfolio() {
         <td>${Math.abs(qty)}</td>
         <td>${theoPx != null ? fmtF(theoPx) : '<span class="v0">—</span>'}</td>
         <td style="color:var(--accent)">${fmtF(curPrice)}</td>
+        <td style="color:var(--muted);font-size:11px" title="Цена входа = тек.цена − P&L/кол-во">${avgPrice != null ? fmtF(avgPrice) : '<span class="v0">—</span>'}</td>
         <td>${fmtF(total)}</td>
         <td class="${pnlCls}">${fmtF(pnl)}</td>
         <td style="font-size:11px">${fmtG(posDelta)}</td>
@@ -1171,6 +1173,7 @@ async function renderPortfolio() {
     rows += `<tr class="pg-subtotal">
       <td colspan="5" style="text-align:right;color:var(--muted);font-size:10px">Итого по группе:</td>
       <td style="font-weight:600">${fmtF(groupTotal)}</td>
+      <td></td>
       <td class="${pnlCls}" style="font-weight:600">${fmtF(groupPnl)}</td>
       <td style="font-weight:600;font-size:11px">${groupDelta !== 0 ? groupDelta.toFixed(2) : ''}</td>
       <td style="font-weight:600;font-size:11px;color:var(--muted)">${groupTheta !== 0 ? groupTheta.toFixed(1) : ''}</td>
@@ -1209,6 +1212,7 @@ async function renderPortfolio() {
             <th>Кол-во</th>
             <th>Теор. цена</th>
             <th>Тек. цена</th>
+            <th>Вход</th>
             <th>Сумма</th>
             <th>P&amp;L</th>
             <th title="Позиционная дельта = Δ × qty">Δ</th>
