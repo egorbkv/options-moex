@@ -762,7 +762,7 @@ function renderBoard(board) {
       <td class="cc vb" >${fmtN(c.bid,        dec)}</td>
       <td class="cc va" >${fmtN(c.offer,      dec)}</td>
       <td class="act cc">${hasC ? `<button class="ab buy" onclick="openVpModal('C',${strike},1,${cTheo},${cIv})">B</button> <button class="ab sel" onclick="openVpModal('C',${strike},-1,${cTheo},${cIv})">S</button>` : ''}</td>
-      <td class="sc">${Number(strike).toLocaleString('ru-RU', {minimumFractionDigits: dec, maximumFractionDigits: dec})}</td>
+      <td class="sc">${Number(strike).toLocaleString('ru-RU', {minimumFractionDigits: 0, maximumFractionDigits: dec})}</td>
       <td class="act pc">${hasP ? `<button class="ab buy" onclick="openVpModal('P',${strike},1,${pTheo},${pIv})">B</button> <button class="ab sel" onclick="openVpModal('P',${strike},-1,${pTheo},${pIv})">S</button>` : ''}</td>
       <td class="pc vb" >${fmtN(p.bid,        dec)}</td>
       <td class="pc va" >${fmtN(p.offer,      dec)}</td>
