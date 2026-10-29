@@ -724,8 +724,8 @@ function renderBoard(board) {
 
     const cTheo = c.theorprice || 0;
     const pTheo = p.theorprice || 0;
-    const cIv  = c.volatility || 0;
-    const pIv  = p.volatility || 0;
+    const cIv  = (c.volatility || 0) / 100;
+    const pIv  = (p.volatility || 0) / 100;
     const hasC = c.strike !== undefined;
     const hasP = p.strike !== undefined;
 
