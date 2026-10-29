@@ -324,7 +324,7 @@
     .vp-table td { padding: 3px 6px; text-align: right;
       border-bottom: 1px solid rgba(255,255,255,.02); }
     .vp-table td:first-child { text-align: left; }
-    .vp-chart-area { flex: 1; min-height: 400px; padding: 6px 2px 0;
+    .vp-chart-area { flex: 1; min-height: 400px; padding: 6px 0 0;
       display: flex; flex-direction: column; overflow: hidden; }
     .vp-chart-placeholder { flex: 1; display: flex; align-items: center;
       justify-content: center; color: var(--muted); font-size: 11px; text-align: center;
@@ -1181,7 +1181,7 @@ function _vpChartSvg() {
   const yPad  = (yRaw1 - yRaw0) * 0.14 || 500;
   const yLo = yRaw0 - yPad, yHi = yRaw1 + yPad;
 
-  const W=340, H=400, ml=60, mr=10, mt=16, mb=28;
+  const W=620, H=400, ml=62, mr=8, mt=16, mb=28;
   const cw=W-ml-mr, ch=H-mt-mb;
 
   // Store params for hover handler
