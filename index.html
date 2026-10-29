@@ -558,16 +558,7 @@ async function init() {
   try {
     allAssets = await api('/assets');
 
-    const container = document.getElementById('presets');
-    PRESETS.forEach(code => {
-      if (allAssets.find(a => a.asset_code === code)) {
-        const btn = document.createElement('button');
-        btn.className = 'pbtn';
-        btn.textContent = code;
-        btn.onclick = () => acSelect(code);
-        container.appendChild(btn);
-      }
-    });
+    renderPresetBtns();
 
     setStatus('Выберите актив', '');
     setContent('<div class="state"><div class="state-txt">Выберите базовый актив</div></div>');
@@ -648,10 +639,35 @@ document.addEventListener('click', e => {
   if (!document.getElementById('acWrap').contains(e.target)) acClose();
 });
 
+function getRecentAssets() {
+  try { return JSON.parse(localStorage.getItem('recent_assets')) || []; } catch { return []; }
+}
+function addRecentAsset(code) {
+  const list = [code, ...getRecentAssets().filter(c => c !== code)].slice(0, 3);
+  try { localStorage.setItem('recent_assets', JSON.stringify(list)); } catch {}
+}
+function renderPresetBtns() {
+  const container = document.getElementById('presets');
+  container.querySelectorAll('.pbtn').forEach(b => b.remove());
+  const recents = getRecentAssets();
+  const toShow = recents.length ? recents : PRESETS.filter(c => allAssets.find(a => a.asset_code === c));
+  toShow.forEach(code => {
+    if (!allAssets.find(a => a.asset_code === code)) return;
+    const btn = document.createElement('button');
+    btn.className = 'pbtn';
+    btn.textContent = code;
+    btn.classList.toggle('active', code === currentAsset);
+    btn.onclick = () => acSelect(code);
+    container.appendChild(btn);
+  });
+}
+
 /* ── 2. load option series ── */
 async function onAssetSelect(asset) {
   if (!asset) return;
   currentAsset = asset;
+  addRecentAsset(asset);
+  renderPresetBtns();
   document.querySelectorAll('.pbtn').forEach(b =>
     b.classList.toggle('active', b.textContent === asset)
   );
