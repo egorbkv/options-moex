@@ -1044,7 +1044,13 @@ function showOptionChart(underlying) {
   const W=560, H=300, ml=68, mr=18, mt=18, mb=38;
   const cw=W-ml-mr, ch=H-mt-mb;
 
-  window._portChart = { xMin, xMax, yLo, yHi, ml, mr, mt, mb, W, H, N, cw, ch, pnlExp, pnlNow, F0 };
+  const xDec = Math.min(4, Math.max(...[F0, ...positions.map(p => p.K)].map(v => {
+    const s = v.toString(), d = s.indexOf('.');
+    return d >= 0 ? s.length - d - 1 : 0;
+  })));
+  const fmtX = v => v.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: xDec });
+
+  window._portChart = { xMin, xMax, yLo, yHi, ml, mr, mt, mb, W, H, N, cw, ch, pnlExp, pnlNow, F0, xDec };
 
   const toX = v => ml + (v-xMin)/(xMax-xMin)*cw;
   const toY = v => mt + (1-(v-yLo)/(yHi-yLo))*ch;
@@ -1070,13 +1076,13 @@ function showOptionChart(underlying) {
   for (let v = Math.ceil(xMin/xStep)*xStep; v <= xMax; v += xStep) {
     const x = toX(v);
     svg += `<line x1="${x.toFixed(1)}" y1="${mt}" x2="${x.toFixed(1)}" y2="${mt+ch}" stroke="rgba(255,255,255,0.05)" stroke-dasharray="4"/>`;
-    svg += `<text x="${x.toFixed(1)}" y="${mt+ch+14}" text-anchor="middle" fill="#777" font-size="9">${Math.round(v).toLocaleString('ru-RU')}</text>`;
+    svg += `<text x="${x.toFixed(1)}" y="${mt+ch+14}" text-anchor="middle" fill="#777" font-size="9">${fmtX(v)}</text>`;
   }
   // Zero line
   svg += `<line x1="${ml}" y1="${y0.toFixed(1)}" x2="${ml+cw}" y2="${y0.toFixed(1)}" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>`;
   // Current F line
   svg += `<line x1="${xF0.toFixed(1)}" y1="${mt}" x2="${xF0.toFixed(1)}" y2="${mt+ch}" stroke="#ffcc44" stroke-width="1.5" stroke-dasharray="5,3" opacity=".8"/>`;
-  svg += `<text x="${xF0.toFixed(1)}" y="${mt-5}" text-anchor="middle" fill="#ffcc44" font-size="9">${Math.round(F0).toLocaleString('ru-RU')}</text>`;
+  svg += `<text x="${xF0.toFixed(1)}" y="${mt-5}" text-anchor="middle" fill="#ffcc44" font-size="9">${fmtX(F0)}</text>`;
   // Curves
   svg += `<path d="${pts(pnlNow)}" fill="none" stroke="#ff6b4a" stroke-width="2.5"/>`;
   svg += `<path d="${pts(pnlExp)}" fill="none" stroke="#4a9eff" stroke-width="2"/>`;
@@ -1159,7 +1165,7 @@ function portChartHover(evt) {
   const xlW = 52;
   const xlX = Math.max(c.ml + xlW/2, Math.min(c.ml + c.cw - xlW/2, x));
   set('pcc-xlbg', { x: (xlX - xlW/2).toFixed(1), width: xlW });
-  set('pcc-xl',   { x: xlX.toFixed(1), text: Math.round(F).toLocaleString('ru-RU') });
+  set('pcc-xl',   { x: xlX.toFixed(1), text: F.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: c.xDec }) });
 
   const ylW = 44, ylH = 13;
   const ylX = c.ml - ylW - 3;
