@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -722,10 +722,8 @@ function renderBoard(board) {
     const p = putMap[strike]  || {};
     const isAtm = atmStrike !== null && strike === atmStrike;
 
-    const cAsk = c.offer || c.last || c.theorprice || 0;
-    const cBid = c.bid   || c.last || c.theorprice || 0;
-    const pAsk = p.offer || p.last || p.theorprice || 0;
-    const pBid = p.bid   || p.last || p.theorprice || 0;
+    const cTheo = c.theorprice || 0;
+    const pTheo = p.theorprice || 0;
     const cIv  = c.volatility || 0;
     const pIv  = p.volatility || 0;
     const hasC = c.strike !== undefined;
@@ -738,9 +736,9 @@ function renderBoard(board) {
       <td class="cc vl" >${fmtN(c.last,       dec)}</td>
       <td class="cc vb" >${fmtN(c.bid,        dec)}</td>
       <td class="cc va" >${fmtN(c.offer,      dec)}</td>
-      <td class="act cc">${hasC ? `<button class="ab buy" onclick="openVpModal('C',${strike},1,${cAsk},${cIv})">B</button> <button class="ab sel" onclick="openVpModal('C',${strike},-1,${cBid},${cIv})">S</button>` : ''}</td>
+      <td class="act cc">${hasC ? `<button class="ab buy" onclick="openVpModal('C',${strike},1,${cTheo},${cIv})">B</button> <button class="ab sel" onclick="openVpModal('C',${strike},-1,${cTheo},${cIv})">S</button>` : ''}</td>
       <td class="sc">${Number(strike).toLocaleString('ru-RU', {minimumFractionDigits: dec, maximumFractionDigits: dec})}</td>
-      <td class="act pc">${hasP ? `<button class="ab buy" onclick="openVpModal('P',${strike},1,${pAsk},${pIv})">B</button> <button class="ab sel" onclick="openVpModal('P',${strike},-1,${pBid},${pIv})">S</button>` : ''}</td>
+      <td class="act pc">${hasP ? `<button class="ab buy" onclick="openVpModal('P',${strike},1,${pTheo},${pIv})">B</button> <button class="ab sel" onclick="openVpModal('P',${strike},-1,${pTheo},${pIv})">S</button>` : ''}</td>
       <td class="pc vb" >${fmtN(p.bid,        dec)}</td>
       <td class="pc va" >${fmtN(p.offer,      dec)}</td>
       <td class="pc vl" >${fmtN(p.last,       dec)}</td>
