@@ -572,7 +572,11 @@ async function init() {
     setStatus('Выберите актив', '');
     setContent('<div class="state"><div class="state-txt">Выберите базовый актив</div></div>');
 
-    if (allAssets.find(a => a.asset_code === 'Si')) acSelect('Si');
+    const savedAsset = localStorage.getItem('board_asset');
+    const toLoad = (savedAsset && allAssets.find(a => a.asset_code === savedAsset))
+      ? savedAsset
+      : allAssets.find(a => a.asset_code === 'Si') ? 'Si' : null;
+    if (toLoad) acSelect(toLoad);
   } catch(e) {
     setStatus('Ошибка', 'err');
     setContent(`<div class="state"><div class="state-err">Ошибка загрузки активов: ${e.message}</div></div>`);
@@ -663,7 +667,9 @@ async function onAssetSelect(asset) {
     ).join('');
     sel.disabled = false;
     document.getElementById('btnRefresh').disabled = false;
-    currentSeries = allSeries[0] || null;
+    const savedSeries = localStorage.getItem('board_series');
+    const matched = savedSeries && allSeries.find(s => s.optionseries_code === savedSeries);
+    currentSeries = matched || allSeries[0] || null;
     if (currentSeries) { sel.value = currentSeries.optionseries_code; await loadBoard(); }
   } catch(e) {
     setStatus('Ошибка', 'err');
@@ -684,6 +690,9 @@ async function loadBoard() {
     renderBoard(board);
     const exp = currentSeries ? fmtDate(currentSeries.expiration_date) : code;
     setStatus(`${currentAsset} / ${exp}`, 'ok');
+    try { localStorage.setItem('board_asset', currentAsset);
+          localStorage.setItem('board_series', code); } catch {}
+
   } catch(e) {
     setStatus('Ошибка', 'err');
     setContent(`<div class="state"><div class="state-err">Ошибка загрузки доски: ${e.message}</div></div>`);
