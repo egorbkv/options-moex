@@ -296,6 +296,56 @@
     .leg { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
 
     .board-only { /* shown only in board tab */ }
+
+    /* ── BOARD FLEX LAYOUT ── */
+    .board-flex { display: flex; }
+    .board-left  { flex: 1; min-width: 0; overflow-x: auto; }
+    .board-right {
+      width: 360px; flex-shrink: 0;
+      border-left: 1px solid var(--border);
+      position: sticky; top: 0; align-self: flex-start;
+      max-height: calc(100vh - 88px); overflow-y: auto;
+      display: flex; flex-direction: column;
+    }
+    #vpanel { display: flex; flex-direction: column; min-height: 100%; }
+    .vp-hdr { display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 12px 8px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .vp-hdr-title { font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .8px; color: var(--muted); }
+    .vp-empty { padding: 28px 14px; color: var(--muted); font-size: 11px;
+      text-align: center; line-height: 2; flex: 1; }
+    .vp-list { flex-shrink: 0; max-height: 170px; overflow-y: auto;
+      border-bottom: 1px solid var(--border); }
+    .vp-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .vp-table th { color: var(--muted); font-weight: 400; text-align: right;
+      padding: 3px 6px; font-size: 10px; border-bottom: 1px solid var(--border);
+      background: var(--surface); position: sticky; top: 0; }
+    .vp-table th:first-child { text-align: left; }
+    .vp-table td { padding: 3px 6px; text-align: right;
+      border-bottom: 1px solid rgba(255,255,255,.02); }
+    .vp-table td:first-child { text-align: left; }
+    .vp-chart-area { flex: 1; min-height: 220px; padding: 6px 2px 0;
+      display: flex; flex-direction: column; overflow: hidden; }
+    .vp-chart-placeholder { flex: 1; display: flex; align-items: center;
+      justify-content: center; color: var(--muted); font-size: 11px; text-align: center;
+      line-height: 1.8; }
+    .vp-legend { display: flex; gap: 14px; padding: 5px 10px 6px; flex-shrink: 0;
+      border-top: 1px solid var(--border); }
+    .vp-legend span { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); }
+    /* VP add modal */
+    #vpModal { position: fixed; inset: 0; z-index: 600; background: rgba(0,0,0,.75);
+      display: none; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+    .vp-modal-box { background: var(--surface); border: 1px solid var(--border);
+      border-radius: 6px; padding: 20px 22px; min-width: 280px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+    .vp-modal-title { font-size: 13px; font-weight: 700; margin-bottom: 16px; }
+    .vp-modal-fields { display: flex; gap: 10px; }
+    .vp-modal-field { flex: 1; }
+    .vp-modal-field label { display: block; color: var(--muted); font-size: 10px;
+      text-transform: uppercase; letter-spacing: .7px; margin-bottom: 5px; }
+    .vp-modal-field input { width: 100%; padding: 7px 9px; font-size: 13px; }
+    .vp-modal-btns { display: flex; gap: 8px; margin-top: 16px; }
+    .vp-modal-btns button { flex: 1; padding: 8px; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -401,6 +451,9 @@ let allSeries = [];
 let currentTab = 'board';
 let currentDec = 0;
 let currentLotMult = 1;
+let virtualPositions = [];
+let currentF = null;
+let _vpPending = null;
 
 /* ── TABS ── */
 function switchTab(tab) {
@@ -653,14 +706,31 @@ function renderBoard(board) {
   if (!strikes.length) { setContent('<div class="state"><div class="state-txt">Нет данных</div></div>'); return; }
 
   const atmStrike = currentSeries?.central_strike || null;
-  const seriesCode = currentSeries?.optionseries_code || '';
-  const expDate = currentSeries?.expiration_date || '';
+
+  // Estimate F from ATM put-call parity: F = K + C_theo - P_theo
+  if (atmStrike && callMap[atmStrike]?.theorprice && putMap[atmStrike]?.theorprice) {
+    currentF = atmStrike + Number(callMap[atmStrike].theorprice) - Number(putMap[atmStrike].theorprice);
+  } else {
+    currentF = atmStrike || strikes[Math.floor(strikes.length / 2)];
+  }
+
+  loadVirtualPortfolio();
 
   let rows_html = '';
   strikes.forEach(strike => {
     const c = callMap[strike] || {};
     const p = putMap[strike]  || {};
     const isAtm = atmStrike !== null && strike === atmStrike;
+
+    const cAsk = c.offer || c.last || c.theorprice || 0;
+    const cBid = c.bid   || c.last || c.theorprice || 0;
+    const pAsk = p.offer || p.last || p.theorprice || 0;
+    const pBid = p.bid   || p.last || p.theorprice || 0;
+    const cIv  = c.volatility || 0;
+    const pIv  = p.volatility || 0;
+    const hasC = c.strike !== undefined;
+    const hasP = p.strike !== undefined;
+
     rows_html += `<tr${isAtm ? ' class="atm"' : ''}>
       <td class="cc viv">${fmtPct(c.volatility)}</td>
       <td class="cc vd" >${fmtDelta(c.delta)}</td>
@@ -668,7 +738,9 @@ function renderBoard(board) {
       <td class="cc vl" >${fmtN(c.last,       dec)}</td>
       <td class="cc vb" >${fmtN(c.bid,        dec)}</td>
       <td class="cc va" >${fmtN(c.offer,      dec)}</td>
+      <td class="act cc">${hasC ? `<button class="ab buy" onclick="openVpModal('C',${strike},1,${cAsk},${cIv})">B</button> <button class="ab sel" onclick="openVpModal('C',${strike},-1,${cBid},${cIv})">S</button>` : ''}</td>
       <td class="sc">${Number(strike).toLocaleString('ru-RU', {minimumFractionDigits: dec, maximumFractionDigits: dec})}</td>
+      <td class="act pc">${hasP ? `<button class="ab buy" onclick="openVpModal('P',${strike},1,${pAsk},${pIv})">B</button> <button class="ab sel" onclick="openVpModal('P',${strike},-1,${pBid},${pIv})">S</button>` : ''}</td>
       <td class="pc vb" >${fmtN(p.bid,        dec)}</td>
       <td class="pc va" >${fmtN(p.offer,      dec)}</td>
       <td class="pc vl" >${fmtN(p.last,       dec)}</td>
@@ -679,23 +751,32 @@ function renderBoard(board) {
   });
 
   setContent(`
-    <table>
-      <thead>
-        <tr class="gh">
-          <th class="ch" colspan="6">● CALL — Опционы колл</th>
-          <th class="sh">СТРАЙК</th>
-          <th class="ph" colspan="6">● PUT — Опционы пут</th>
-        </tr>
-        <tr class="colh">
-          <th class="cc">IV%</th><th class="cc">Δ</th><th class="cc">Теор.</th>
-          <th class="cc">Last</th><th class="cc">Bid</th><th class="cc">Ask</th>
-          <th class="sc">—</th>
-          <th class="pc">Bid</th><th class="pc">Ask</th><th class="pc">Last</th>
-          <th class="pc">Теор.</th><th class="pc">Δ</th><th class="pc">IV%</th>
-        </tr>
-      </thead>
-      <tbody>${rows_html}</tbody>
-    </table>`);
+    <div class="board-flex">
+      <div class="board-left">
+        <table>
+          <thead>
+            <tr class="gh">
+              <th class="ch" colspan="7">● CALL — Опционы колл</th>
+              <th class="sh">СТРАЙК</th>
+              <th class="ph" colspan="7">● PUT — Опционы пут</th>
+            </tr>
+            <tr class="colh">
+              <th class="cc">IV%</th><th class="cc">Δ</th><th class="cc">Теор.</th>
+              <th class="cc">Last</th><th class="cc">Bid</th><th class="cc">Ask</th>
+              <th class="ac"></th>
+              <th class="sc">—</th>
+              <th class="ap"></th>
+              <th class="pc">Bid</th><th class="pc">Ask</th><th class="pc">Last</th>
+              <th class="pc">Теор.</th><th class="pc">Δ</th><th class="pc">IV%</th>
+            </tr>
+          </thead>
+          <tbody>${rows_html}</tbody>
+        </table>
+      </div>
+      <div class="board-right" id="vpanel"></div>
+    </div>`);
+
+  renderVirtualPanel();
 
   setTimeout(() => {
     const atm = document.querySelector('tr.atm');
@@ -704,7 +785,7 @@ function renderBoard(board) {
 }
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeFinamModal(); closeOptionChart(); }
+  if (e.key === 'Escape') { closeFinamModal(); closeOptionChart(); closeVpModal(); }
 });
 
 /* ── FINAM settings ── */
@@ -991,6 +1072,172 @@ function closeOptionChart() {
   document.getElementById('opt-chart-modal').style.display = 'none';
 }
 
+/* ── VIRTUAL PORTFOLIO (board tab) ── */
+function getVpKey() {
+  return 'vp_' + (currentSeries?.optionseries_code || '_');
+}
+function loadVirtualPortfolio() {
+  try { virtualPositions = JSON.parse(localStorage.getItem(getVpKey())) || []; } catch { virtualPositions = []; }
+}
+function saveVirtualPortfolio() {
+  try { localStorage.setItem(getVpKey(), JSON.stringify(virtualPositions)); } catch {}
+}
+function clearVirtualPortfolio() {
+  virtualPositions = [];
+  saveVirtualPortfolio();
+  renderVirtualPanel();
+}
+function openVpModal(type, strike, dir, price, iv) {
+  _vpPending = { type, strike, dir, iv };
+  document.getElementById('vpModalTitle').textContent =
+    (dir > 0 ? 'Купить' : 'Продать') + ' ' + (type === 'C' ? 'CALL' : 'PUT') + ' @' +
+    Number(strike).toLocaleString('ru-RU');
+  const btn = document.getElementById('vpConfirmBtn');
+  btn.className = dir > 0 ? 'btn-confirm-buy' : 'btn-confirm-sell';
+  btn.textContent = dir > 0 ? 'Купить' : 'Продать';
+  document.getElementById('vpQtyInput').value = 1;
+  const d = currentDec > 0 ? currentDec : 2;
+  document.getElementById('vpPriceInput').value = price > 0 ? Number(price).toFixed(d) : '';
+  document.getElementById('vpModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('vpQtyInput').select(), 30);
+}
+function closeVpModal() {
+  document.getElementById('vpModal').style.display = 'none';
+  _vpPending = null;
+}
+function confirmVpModal() {
+  if (!_vpPending) return;
+  const qty   = Math.max(1, Math.abs(parseInt(document.getElementById('vpQtyInput').value) || 1));
+  const price = parseFloat(document.getElementById('vpPriceInput').value.replace(',', '.'));
+  if (isNaN(price) || price < 0) { alert('Укажите цену'); return; }
+  const { type, strike, dir, iv } = _vpPending;
+  virtualPositions.push({
+    strike: Number(strike), type, qty: dir * qty,
+    price, iv: iv || 0,
+    mult: currentLotMult,
+    expDate: currentSeries?.expiration_date || '',
+  });
+  saveVirtualPortfolio();
+  closeVpModal();
+  renderVirtualPanel();
+}
+function removeVpPosition(idx) {
+  virtualPositions.splice(idx, 1);
+  saveVirtualPortfolio();
+  renderVirtualPanel();
+}
+
+function _vpChartSvg() {
+  if (!virtualPositions.length || !currentF)
+    return '<div class="vp-chart-placeholder">Добавьте позиции<br>для построения графика</div>';
+
+  const F0 = currentF;
+  const expDate = virtualPositions[0].expDate;
+  const T = expDate ? Math.max(0, (new Date(expDate) - Date.now()) / (1000 * 86400 * 365)) : 0;
+
+  const spread = Math.max(F0 * 0.22,
+    ...virtualPositions.map(p => Math.abs(F0 - p.strike) * 1.6));
+  const xMin = F0 - spread, xMax = F0 + spread;
+
+  const N = 120;
+  const pnlExp = [], pnlNow = [];
+  for (let i = 0; i <= N; i++) {
+    const F = xMin + (xMax - xMin) * i / N;
+    let ev = 0, nv = 0;
+    for (const p of virtualPositions) {
+      const pay = p.type === 'C' ? Math.max(0, F - p.strike) : Math.max(0, p.strike - F);
+      ev += (pay - p.price) * p.mult * p.qty;
+      const theo = p.iv > 0 && T > 0 ? _b76Price(F, p.strike, T, p.iv, p.type) : pay;
+      nv += (theo - p.price) * p.mult * p.qty;
+    }
+    pnlExp.push(ev); pnlNow.push(nv);
+  }
+
+  const allY = [...pnlExp, ...pnlNow];
+  const yRaw0 = Math.min(...allY, 0), yRaw1 = Math.max(...allY, 0);
+  const yPad  = (yRaw1 - yRaw0) * 0.14 || 500;
+  const yLo = yRaw0 - yPad, yHi = yRaw1 + yPad;
+
+  const W=340, H=200, ml=58, mr=8, mt=14, mb=26;
+  const cw=W-ml-mr, ch=H-mt-mb;
+  const toX = v => ml + (v - xMin) / (xMax - xMin) * cw;
+  const toY = v => mt + (1 - (v - yLo) / (yHi - yLo)) * ch;
+  const pts = arr => arr.map((v, i) => {
+    const F = xMin + (xMax - xMin) * i / N;
+    return `${i ? 'L' : 'M'}${toX(F).toFixed(1)},${toY(v).toFixed(1)}`;
+  }).join('');
+
+  const y0 = toY(0), xF0 = toX(F0);
+  let s = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;flex:1">`;
+  s += `<rect x="${ml}" y="${mt}" width="${cw}" height="${ch}" fill="rgba(255,255,255,.02)" rx="2"/>`;
+
+  const yStep = _niceStep((yHi - yLo) / 5);
+  for (let v = Math.ceil(yLo / yStep) * yStep; v <= yHi + yStep * 0.01; v += yStep) {
+    const y = toY(v); if (y < mt - 2 || y > mt + ch + 2) continue;
+    s += `<line x1="${ml}" y1="${y.toFixed(1)}" x2="${ml+cw}" y2="${y.toFixed(1)}" stroke="rgba(255,255,255,.07)" stroke-dasharray="3"/>`;
+    const lbl = Math.abs(v) >= 10000 ? (v/1000).toFixed(0)+'к' : Math.abs(v) >= 1000 ? (v/1000).toFixed(1)+'к' : Math.round(v).toString();
+    s += `<text x="${ml-4}" y="${(y+3.5).toFixed(1)}" text-anchor="end" fill="#666" font-size="9">${v > 0 ? '+' : ''}${lbl}</text>`;
+  }
+  const xStep = _niceStep((xMax - xMin) / 5);
+  for (let v = Math.ceil(xMin / xStep) * xStep; v <= xMax; v += xStep) {
+    const x = toX(v);
+    s += `<line x1="${x.toFixed(1)}" y1="${mt}" x2="${x.toFixed(1)}" y2="${mt+ch}" stroke="rgba(255,255,255,.05)" stroke-dasharray="3"/>`;
+    s += `<text x="${x.toFixed(1)}" y="${mt+ch+12}" text-anchor="middle" fill="#666" font-size="8">${Math.round(v).toLocaleString('ru-RU')}</text>`;
+  }
+  s += `<line x1="${ml}" y1="${y0.toFixed(1)}" x2="${ml+cw}" y2="${y0.toFixed(1)}" stroke="rgba(255,255,255,.25)" stroke-width="1"/>`;
+  s += `<line x1="${xF0.toFixed(1)}" y1="${mt}" x2="${xF0.toFixed(1)}" y2="${mt+ch}" stroke="#ffcc44" stroke-width="1.5" stroke-dasharray="4,3" opacity=".8"/>`;
+  s += `<text x="${xF0.toFixed(1)}" y="${mt-3}" text-anchor="middle" fill="#ffcc44" font-size="8">${Math.round(F0).toLocaleString('ru-RU')}</text>`;
+  s += `<path d="${pts(pnlNow)}" fill="none" stroke="#ff6b4a" stroke-width="2.5" stroke-linejoin="round"/>`;
+  s += `<path d="${pts(pnlExp)}" fill="none" stroke="#4a9eff" stroke-width="2" stroke-linejoin="round"/>`;
+  s += `<line x1="${ml}" y1="${mt}" x2="${ml}" y2="${mt+ch}" stroke="#444"/>`;
+  s += `<line x1="${ml}" y1="${mt+ch}" x2="${ml+cw}" y2="${mt+ch}" stroke="#444"/>`;
+  s += '</svg>';
+  return s;
+}
+
+function renderVirtualPanel() {
+  const el = document.getElementById('vpanel');
+  if (!el) return;
+
+  const cnt = virtualPositions.length;
+  let html = `<div class="vp-hdr">
+    <span class="vp-hdr-title">Стратегия${cnt ? ` <span class="badge badge-M">${cnt}</span>` : ''}</span>
+    <button onclick="clearVirtualPortfolio()" style="font-size:10px;padding:2px 8px"${cnt ? '' : ' disabled'}>Сбросить</button>
+  </div>`;
+
+  if (cnt) {
+    html += `<div class="vp-list"><table class="vp-table">
+      <thead><tr><th>Тип</th><th>Страйк</th><th>Кол.</th><th>Цена</th><th></th></tr></thead>
+      <tbody>`;
+    virtualPositions.forEach((p, i) => {
+      const d = currentDec > 0 ? currentDec : 2;
+      const clr   = p.type === 'C' ? 'var(--call)' : 'var(--put)';
+      const sideEl = p.qty > 0 ? `<span style="color:var(--call)">▲</span>` : `<span style="color:var(--put)">▼</span>`;
+      html += `<tr>
+        <td><span style="color:${clr};font-weight:700">${p.type}</span>${sideEl}</td>
+        <td>${p.strike.toLocaleString('ru-RU')}</td>
+        <td>${Math.abs(p.qty)}</td>
+        <td>${p.price.toFixed(d)}</td>
+        <td><button onclick="removeVpPosition(${i})" style="padding:1px 5px;font-size:11px;color:var(--put);background:none;border:none;cursor:pointer;line-height:1">✕</button></td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  } else {
+    html += `<div class="vp-empty">Нажмите <b>B</b> или <b>S</b><br>в таблице слева,<br>чтобы добавить позицию</div>`;
+  }
+
+  html += `<div class="vp-chart-area">${_vpChartSvg()}</div>`;
+
+  if (cnt) {
+    html += `<div class="vp-legend">
+      <span><svg width="20" height="3"><line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#ff6b4a" stroke-width="2.5"/></svg> Сейчас</span>
+      <span><svg width="20" height="3"><line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#4a9eff" stroke-width="2"/></svg> Экспирация</span>
+    </div>`;
+  }
+
+  el.innerHTML = html;
+}
+
 /* ── GREEKS fetch (1 запрос на символ, считаем Black-76 локально) ── */
 const _greeksCache = {};
 async function fetchOptionGreeks(symbol) {
@@ -1265,6 +1512,27 @@ function updatePortCnt(n) {
 
 init();
 </script>
+<div id="vpModal" onclick="if(event.target===this)closeVpModal()">
+  <div class="vp-modal-box">
+    <div class="vp-modal-title" id="vpModalTitle">Купить CALL @0</div>
+    <div class="vp-modal-fields">
+      <div class="vp-modal-field">
+        <label>Количество</label>
+        <input type="number" id="vpQtyInput" min="1" step="1" value="1"
+          onkeydown="if(event.key==='Enter')confirmVpModal()">
+      </div>
+      <div class="vp-modal-field">
+        <label>Цена (пунктов)</label>
+        <input type="number" id="vpPriceInput" min="0" step="any"
+          onkeydown="if(event.key==='Enter')confirmVpModal()">
+      </div>
+    </div>
+    <div class="vp-modal-btns">
+      <button onclick="closeVpModal()">Отмена</button>
+      <button id="vpConfirmBtn" class="btn-confirm-buy" onclick="confirmVpModal()">Купить</button>
+    </div>
+  </div>
+</div>
 <div id="opt-chart-modal" onclick="if(event.target===this)closeOptionChart()">
   <div class="opt-chart-box">
     <div class="opt-chart-header">
