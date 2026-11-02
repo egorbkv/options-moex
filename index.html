@@ -683,9 +683,17 @@ async function onAssetSelect(asset) {
     ).join('');
     sel.disabled = false;
     document.getElementById('btnRefresh').disabled = false;
-    const savedSeries = localStorage.getItem('board_series');
-    const matched = savedSeries && allSeries.find(s => s.optionseries_code === savedSeries);
-    currentSeries = matched || allSeries[0] || null;
+    const pi = window._vpPendingImport;
+    if (pi && pi.underlying === asset && pi.expDate) {
+      const tgt = new Date(pi.expDate).getTime();
+      currentSeries = allSeries.reduce((best, s) =>
+        Math.abs(new Date(s.expiration_date) - tgt) < Math.abs(new Date(best.expiration_date) - tgt) ? s : best
+      );
+    } else {
+      const savedSeries = localStorage.getItem('board_series');
+      const matched = savedSeries && allSeries.find(s => s.optionseries_code === savedSeries);
+      currentSeries = matched || allSeries[0] || null;
+    }
     if (currentSeries) { sel.value = currentSeries.optionseries_code; await loadBoard(); }
   } catch(e) {
     setStatus('Ошибка', 'err');
@@ -741,13 +749,11 @@ function renderBoard(board) {
 
   loadVirtualPortfolio();
 
-  // Apply pending import from portfolio tab
+  // Apply pending import from portfolio tab (replaces existing VP)
   const _pi = window._vpPendingImport;
   if (_pi && _pi.underlying === currentAsset) {
     window._vpPendingImport = null;
-    for (const p of _pi.data) {
-      virtualPositions.push({ strike: p.K, type: p.type, qty: p.qty, price: p.avgPx, iv: p.iv, mult: p.mult, expDate: p.expDate });
-    }
+    virtualPositions = _pi.data.map(p => ({ strike: p.K, type: p.type, qty: p.qty, price: p.avgPx, iv: p.iv, mult: p.mult, expDate: p.expDate }));
     saveVirtualPortfolio();
   }
 
@@ -1438,8 +1444,9 @@ function vpUnhover() {
 function importToBoard(underlying) {
   const data = window._portChartData?.[underlying];
   if (!data?.length) return;
-  // Store for renderBoard to pick up after the board finishes loading
-  window._vpPendingImport = { underlying, data };
+  // Pick most representative expDate (closest to median T)
+  const expDate = data.slice().sort((a, b) => a.expDate.localeCompare(b.expDate))[Math.floor(data.length / 2)].expDate;
+  window._vpPendingImport = { underlying, data, expDate };
   switchTab('board');
   const match = allAssets.find(a => a.asset_code === underlying);
   if (match) onAssetSelect(underlying);
