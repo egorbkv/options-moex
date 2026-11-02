@@ -741,6 +741,16 @@ function renderBoard(board) {
 
   loadVirtualPortfolio();
 
+  // Apply pending import from portfolio tab
+  const _pi = window._vpPendingImport;
+  if (_pi && _pi.underlying === currentAsset) {
+    window._vpPendingImport = null;
+    for (const p of _pi.data) {
+      virtualPositions.push({ strike: p.K, type: p.type, qty: p.qty, price: p.avgPx, iv: p.iv, mult: p.mult, expDate: p.expDate });
+    }
+    saveVirtualPortfolio();
+  }
+
   let rows_html = '';
   strikes.forEach(strike => {
     const c = callMap[strike] || {};
@@ -1425,25 +1435,14 @@ function vpUnhover() {
   document.getElementById('vpc-cross')?.setAttribute('visibility', 'hidden');
 }
 
-function importFromPortfolio() {
-  const data = window._portChartData?.[currentAsset];
-  if (!data?.length) {
-    alert('Нет данных портфеля для ' + (currentAsset || 'этого актива') + '.\nСначала откройте вкладку «Портфель».');
-    return;
-  }
-  for (const p of data) {
-    virtualPositions.push({
-      strike:  p.K,
-      type:    p.type,
-      qty:     p.qty,
-      price:   p.avgPx,
-      iv:      p.iv,
-      mult:    p.mult,
-      expDate: p.expDate
-    });
-  }
-  saveVirtualPortfolio();
-  renderVirtualPanel();
+function importToBoard(underlying) {
+  const data = window._portChartData?.[underlying];
+  if (!data?.length) return;
+  // Store for renderBoard to pick up after the board finishes loading
+  window._vpPendingImport = { underlying, data };
+  switchTab('board');
+  const match = allAssets.find(a => a.asset_code === underlying);
+  if (match) onAssetSelect(underlying);
 }
 
 function renderVirtualPanel() {
@@ -1453,10 +1452,7 @@ function renderVirtualPanel() {
   const cnt = virtualPositions.length;
   let html = `<div class="vp-hdr">
     <span class="vp-hdr-title">Стратегия${cnt ? ` <span class="badge badge-M">${cnt}</span>` : ''}</span>
-    <div style="display:flex;gap:4px">
-      <button onclick="importFromPortfolio()" style="font-size:10px;padding:2px 8px" title="Добавить позиции из реального портфеля по цене входа">📥 Из портфеля</button>
-      <button onclick="clearVirtualPortfolio()" style="font-size:10px;padding:2px 8px"${cnt ? '' : ' disabled'}>Сбросить</button>
-    </div>
+    <button onclick="clearVirtualPortfolio()" style="font-size:10px;padding:2px 8px"${cnt ? '' : ' disabled'}>Сбросить</button>
   </div>`;
 
   if (cnt) {
@@ -1620,6 +1616,7 @@ async function renderPortfolio() {
         <span class="pg-asset">${underlying}</span>
         <span class="pg-cnt">${positions.length} поз.</span>
         <button class="chart-btn" onclick="showOptionChart('${underlying}')" title="P&L график">📊</button>
+        <button class="chart-btn" onclick="importToBoard('${underlying}')" title="Скопировать позиции на доску опционов">📋 На доску</button>
         <span class="${pnlCls}" style="margin-left:auto;float:right;font-size:11px">P&amp;L: ${Number(groupPnl).toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
       </td>
     </tr>`;
