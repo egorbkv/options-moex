@@ -708,9 +708,10 @@ async function loadBoard() {
   currentSeries = allSeries.find(s => s.optionseries_code === code) || null;
   if (!currentAsset || !code) return;
   setStatus(`Загрузка доски…`, 'spin');
-  setContent(`<div class="state"><div class="spinner"></div><div class="state-txt">Загрузка доски опционов…</div></div>`);
+  if (currentTab === 'board') setContent(`<div class="state"><div class="spinner"></div><div class="state-txt">Загрузка доски опционов…</div></div>`);
   try {
     const board = await api(`/assets/${currentAsset}/optionseries/${code}/optionboard?rows=${rows}`);
+    if (currentTab !== 'board') return;
     renderBoard(board);
     const exp = currentSeries ? fmtDate(currentSeries.expiration_date) : code;
     setStatus(`${currentAsset} / ${exp}`, 'ok');
