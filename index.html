@@ -1451,11 +1451,10 @@ function renderVirtualPanel() {
   if (!el) return;
 
   const cnt = virtualPositions.length;
-  const hasPortData = !!(window._portChartData && window._portChartData[currentAsset]?.length);
   let html = `<div class="vp-hdr">
     <span class="vp-hdr-title">Стратегия${cnt ? ` <span class="badge badge-M">${cnt}</span>` : ''}</span>
     <div style="display:flex;gap:4px">
-      ${hasPortData ? `<button onclick="importFromPortfolio()" style="font-size:10px;padding:2px 8px" title="Добавить позиции из реального портфеля по цене входа">📥 Из портфеля</button>` : ''}
+      <button onclick="importFromPortfolio()" style="font-size:10px;padding:2px 8px" title="Добавить позиции из реального портфеля по цене входа">📥 Из портфеля</button>
       <button onclick="clearVirtualPortfolio()" style="font-size:10px;padding:2px 8px"${cnt ? '' : ' disabled'}>Сбросить</button>
     </div>
   </div>`;
