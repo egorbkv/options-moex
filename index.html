@@ -1425,14 +1425,39 @@ function vpUnhover() {
   document.getElementById('vpc-cross')?.setAttribute('visibility', 'hidden');
 }
 
+function importFromPortfolio() {
+  const data = window._portChartData?.[currentAsset];
+  if (!data?.length) {
+    alert('Нет данных портфеля для ' + (currentAsset || 'этого актива') + '.\nСначала откройте вкладку «Портфель».');
+    return;
+  }
+  for (const p of data) {
+    virtualPositions.push({
+      strike:  p.K,
+      type:    p.type,
+      qty:     p.qty,
+      price:   p.avgPx,
+      iv:      p.iv,
+      mult:    p.mult,
+      expDate: p.expDate
+    });
+  }
+  saveVirtualPortfolio();
+  renderVirtualPanel();
+}
+
 function renderVirtualPanel() {
   const el = document.getElementById('vpanel');
   if (!el) return;
 
   const cnt = virtualPositions.length;
+  const hasPortData = !!(window._portChartData && window._portChartData[currentAsset]?.length);
   let html = `<div class="vp-hdr">
     <span class="vp-hdr-title">Стратегия${cnt ? ` <span class="badge badge-M">${cnt}</span>` : ''}</span>
-    <button onclick="clearVirtualPortfolio()" style="font-size:10px;padding:2px 8px"${cnt ? '' : ' disabled'}>Сбросить</button>
+    <div style="display:flex;gap:4px">
+      ${hasPortData ? `<button onclick="importFromPortfolio()" style="font-size:10px;padding:2px 8px" title="Добавить позиции из реального портфеля по цене входа">📥 Из портфеля</button>` : ''}
+      <button onclick="clearVirtualPortfolio()" style="font-size:10px;padding:2px 8px"${cnt ? '' : ' disabled'}>Сбросить</button>
+    </div>
   </div>`;
 
   if (cnt) {
@@ -1622,7 +1647,9 @@ async function renderPortfolio() {
       const g        = greeksMap[sym] || {};
       const theoPx   = g.theoPx != null ? g.theoPx : null;
       if (g.F && g.K && g.type && g.iv && g.T > 0) {
-        chartPosArr.push({qty, K: g.K, type: g.type, iv: g.iv, T: g.T, F: g.F, mult, curApiPx: curPrice / mult});
+        const expDate = new Date(Date.now() + g.T * 365 * 86400 * 1000).toISOString().split('T')[0];
+        const avgPx = avgPrice != null ? avgPrice / mult : curPrice / mult;
+        chartPosArr.push({qty, K: g.K, type: g.type, iv: g.iv, T: g.T, F: g.F, mult, curApiPx: curPrice / mult, avgPx, expDate});
       }
       const posDelta = g.delta != null ? g.delta * qty : null;
       const posTheta = g.theta != null ? g.theta * qty : null;
