@@ -1508,7 +1508,7 @@ async function fetchOptionGreeks(symbol) {
   if (_greeksCache[base] !== undefined) return _greeksCache[base];
   try {
     const url = `/iss/engines/futures/markets/options/boards/ROPD/securities/${encodeURIComponent(base)}.json` +
-      `?iss.meta=off&securities.columns=SECID,OPTIONTYPE,STRIKE,LASTTRADEDATE,UNDERLYINGSETTLEPRICE,SETTLEPRICE_CLR` +
+      `?iss.meta=off&securities.columns=SECID,ASSETCODE,OPTIONTYPE,STRIKE,LASTTRADEDATE,UNDERLYINGSETTLEPRICE,SETTLEPRICE_CLR` +
       `&marketdata.columns=SECID,LAST,SETTLEPRICE`;
     const r = await fetch(url);
     if (!r.ok) { _greeksCache[base] = null; return null; }
@@ -1532,6 +1532,8 @@ async function fetchOptionGreeks(symbol) {
 
     const g = _black76(F, K, T, iv, type);
     g.F = F; g.K = K; g.type = type; g.theoPx = optPrice; g.iv = iv; g.T = T;
+    const ac = String(sg('ASSETCODE') || '').toUpperCase();
+    g.assetCode = allAssets.find(a => a.asset_code.toUpperCase() === ac)?.asset_code || ac || null;
     _greeksCache[base] = g;
     return g;
   } catch { _greeksCache[base] = null; return null; }
@@ -1658,14 +1660,7 @@ async function renderPortfolio() {
       if (g.F && g.K && g.type && g.iv && g.T > 0) {
         const expDate = new Date(Date.now() + g.T * 365 * 86400 * 1000).toISOString().split('T')[0];
         const avgPx = avgPrice != null ? avgPrice / mult : curPrice / mult;
-        // Find MOEX asset_code from the option's MOEX SECID (sym without @FORTS)
-        const moexSecId = sym.replace(/@.*$/, '');
-        let moexAssetCode = null;
-        for (let len = 2; len <= 4; len++) {
-          if (allAssets.find(a => a.asset_code === moexSecId.slice(0, len))) {
-            moexAssetCode = moexSecId.slice(0, len); break;
-          }
-        }
+        const moexAssetCode = g.assetCode;
         chartPosArr.push({qty, K: g.K, type: g.type, iv: g.iv, T: g.T, F: g.F, mult, curApiPx: curPrice / mult, avgPx, expDate, moexAssetCode});
       }
       const posDelta = g.delta != null ? g.delta * qty : null;
