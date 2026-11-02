@@ -1444,12 +1444,15 @@ function vpUnhover() {
 function importToBoard(underlying) {
   const data = window._portChartData?.[underlying];
   if (!data?.length) return;
-  // Pick most representative expDate (closest to median T)
   const expDate = data.slice().sort((a, b) => a.expDate.localeCompare(b.expDate))[Math.floor(data.length / 2)].expDate;
   window._vpPendingImport = { underlying, data, expDate };
-  switchTab('board');
-  const match = allAssets.find(a => a.asset_code === underlying);
-  if (match) onAssetSelect(underlying);
+  // Switch tab UI without triggering a stale loadBoard that would race with onAssetSelect
+  currentTab = 'board';
+  document.getElementById('tabBoard').classList.add('active');
+  document.getElementById('tabPortfolio').classList.remove('active');
+  document.getElementById('boardControls').style.display = 'flex';
+  document.getElementById('ftr').style.display = 'flex';
+  onAssetSelect(underlying);
 }
 
 function renderVirtualPanel() {
