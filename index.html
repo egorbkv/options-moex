@@ -1444,15 +1444,21 @@ function vpUnhover() {
 function importToBoard(underlying) {
   const data = window._portChartData?.[underlying];
   if (!data?.length) return;
+  // Map portfolio group key to actual MOEX asset_code (try 2→4 letter prefixes)
+  let assetCode = underlying;
+  for (let len = 2; len <= underlying.length; len++) {
+    const prefix = underlying.slice(0, len);
+    if (allAssets.find(a => a.asset_code === prefix)) { assetCode = prefix; break; }
+  }
   const expDate = data.slice().sort((a, b) => a.expDate.localeCompare(b.expDate))[Math.floor(data.length / 2)].expDate;
-  window._vpPendingImport = { underlying, data, expDate };
-  // Switch tab UI without triggering a stale loadBoard that would race with onAssetSelect
+  window._vpPendingImport = { underlying: assetCode, data, expDate };
+  // Switch tab UI without triggering a stale loadBoard that races with onAssetSelect
   currentTab = 'board';
   document.getElementById('tabBoard').classList.add('active');
   document.getElementById('tabPortfolio').classList.remove('active');
   document.getElementById('boardControls').style.display = 'flex';
   document.getElementById('ftr').style.display = 'flex';
-  onAssetSelect(underlying);
+  onAssetSelect(assetCode);
 }
 
 function renderVirtualPanel() {
