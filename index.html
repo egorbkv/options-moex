@@ -1283,8 +1283,13 @@ function _vpChartSvg() {
   const W=620, H=400, ml=62, mr=8, mt=16, mb=28;
   const cw=W-ml-mr, ch=H-mt-mb;
 
-  // Store params for hover handler
-  window._vpChart = { xMin, xMax, yLo, yHi, ml, mr, mt, mb, W, H, N, cw, ch, pnlExp, pnlNow, F0 };
+  const xDec = Math.min(4, Math.max(...[F0, ...virtualPositions.map(p => p.strike)].map(v => {
+    const s = v.toString(), d = s.indexOf('.');
+    return d >= 0 ? s.length - d - 1 : 0;
+  })));
+  const fmtX = v => v.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: xDec });
+
+  window._vpChart = { xMin, xMax, yLo, yHi, ml, mr, mt, mb, W, H, N, cw, ch, pnlExp, pnlNow, F0, xDec };
 
   const toX = v => ml + (v - xMin) / (xMax - xMin) * cw;
   const toY = v => mt + (1 - (v - yLo) / (yHi - yLo)) * ch;
@@ -1308,11 +1313,11 @@ function _vpChartSvg() {
   for (let v = Math.ceil(xMin / xStep) * xStep; v <= xMax; v += xStep) {
     const x = toX(v);
     s += `<line x1="${x.toFixed(1)}" y1="${mt}" x2="${x.toFixed(1)}" y2="${mt+ch}" stroke="rgba(255,255,255,.05)" stroke-dasharray="3"/>`;
-    s += `<text x="${x.toFixed(1)}" y="${mt+ch+13}" text-anchor="middle" fill="#555" font-size="8">${Math.round(v).toLocaleString('ru-RU')}</text>`;
+    s += `<text x="${x.toFixed(1)}" y="${mt+ch+13}" text-anchor="middle" fill="#555" font-size="8">${fmtX(v)}</text>`;
   }
   s += `<line x1="${ml}" y1="${y0.toFixed(1)}" x2="${ml+cw}" y2="${y0.toFixed(1)}" stroke="rgba(255,255,255,.25)" stroke-width="1"/>`;
   s += `<line x1="${xF0.toFixed(1)}" y1="${mt}" x2="${xF0.toFixed(1)}" y2="${mt+ch}" stroke="#ffcc44" stroke-width="1.5" stroke-dasharray="4,3" opacity=".8"/>`;
-  s += `<text x="${xF0.toFixed(1)}" y="${mt-4}" text-anchor="middle" fill="#ffcc44" font-size="8">${Math.round(F0).toLocaleString('ru-RU')}</text>`;
+  s += `<text x="${xF0.toFixed(1)}" y="${mt-4}" text-anchor="middle" fill="#ffcc44" font-size="8">${fmtX(F0)}</text>`;
   s += `<path d="${pts(pnlNow)}" fill="none" stroke="#ff6b4a" stroke-width="2.5" stroke-linejoin="round"/>`;
   s += `<path d="${pts(pnlExp)}" fill="none" stroke="#4a9eff" stroke-width="2" stroke-linejoin="round"/>`;
   s += `<line x1="${ml}" y1="${mt}" x2="${ml}" y2="${mt+ch}" stroke="#444"/>`;
@@ -1394,7 +1399,7 @@ function vpHover(evt) {
   const xlW = 52;
   const xlX = Math.max(c.ml + xlW/2, Math.min(c.ml + c.cw - xlW/2, x));
   set('vpc-xlbg', { x: (xlX - xlW/2).toFixed(1), width: xlW });
-  set('vpc-xl',   { x: xlX.toFixed(1), text: Math.round(F).toLocaleString('ru-RU') });
+  set('vpc-xl',   { x: xlX.toFixed(1), text: F.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: c.xDec }) });
 
   // Y labels — flush to left axis
   const ylW = 44, ylH = 13;
