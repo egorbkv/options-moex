@@ -1611,9 +1611,10 @@ async function renderPortfolio() {
     (groups[key] = groups[key] || []).push(p);
   });
 
-  const COLS = 14;
+  const COLS = 15;
   let rows = '';
   let grandPnl       = 0;
+  let grandPnlAll    = 0;
   let grandTotal     = 0;
   let grandDelta     = 0;
   let grandTheta     = 0;
@@ -1637,6 +1638,7 @@ async function renderPortfolio() {
     </tr>`;
 
     let groupTotal     = 0;
+    let groupPnlAll    = 0;
     let groupDelta     = 0;
     let groupTheta     = 0;
     let groupIntrinsic = 0;
@@ -1654,6 +1656,8 @@ async function renderPortfolio() {
       const avgIsManual = savedEntry != null;
       const total    = Math.abs(qty) * curPrice;
       groupTotal += total;
+      const pnlAll   = avgPrice != null ? (curPrice - avgPrice) * qty : null;
+      if (pnlAll != null) groupPnlAll += pnlAll;
 
       const g        = greeksMap[sym] || {};
       const theoPx   = g.theoPx != null ? g.theoPx : null;
@@ -1696,6 +1700,7 @@ async function renderPortfolio() {
         </td>
         <td>${fmtF(total)}</td>
         <td class="${pnlCls}">${fmtF(pnl)}</td>
+        <td class="${pnlAll >= 0 ? 'pnl-pos' : 'pnl-neg'}" title="${avgIsManual ? '(Тек. цена − вход) × кол-во' : 'Цена входа не введена — оценка по P&L за сегодня'}" style="font-weight:600${avgIsManual ? '' : ';opacity:.55'}">${pnlAll != null ? fmtF(pnlAll) : '<span class="v0">—</span>'}</td>
         <td style="font-size:11px">${fmtG(posDelta)}</td>
         <td style="font-size:11px;color:var(--muted)">${fmtG(posTheta, 1)}</td>
         <td style="font-size:11px;color:var(--muted)">${fmtG(posVega, 1)}</td>
@@ -1706,16 +1711,17 @@ async function renderPortfolio() {
     });
 
     grandTotal     += groupTotal;
+    grandPnlAll    += groupPnlAll;
     grandDelta     += groupDelta;
     grandTheta     += groupTheta;
     grandIntrinsic += groupIntrinsic;
     grandTimeVal   += groupTimeVal;
     window._portChartData[underlying] = chartPosArr;
     rows += `<tr class="pg-subtotal">
-      <td colspan="5" style="text-align:right;color:var(--muted);font-size:10px">Итого по группе:</td>
+      <td colspan="6" style="text-align:right;color:var(--muted);font-size:10px">Итого по группе:</td>
       <td style="font-weight:600">${fmtF(groupTotal)}</td>
-      <td></td>
       <td class="${pnlCls}" style="font-weight:600">${fmtF(groupPnl)}</td>
+      <td class="${groupPnlAll >= 0 ? 'pnl-pos' : 'pnl-neg'}" style="font-weight:600">${fmtF(groupPnlAll)}</td>
       <td style="font-weight:600;font-size:11px">${groupDelta !== 0 ? groupDelta.toFixed(2) : ''}</td>
       <td style="font-weight:600;font-size:11px;color:var(--muted)">${groupTheta !== 0 ? groupTheta.toFixed(1) : ''}</td>
       <td></td>
@@ -1737,7 +1743,8 @@ async function renderPortfolio() {
       <span style="margin-left:auto;font-size:11px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">
         ${accountEquity != null ? `<span title="Оценка счёта (Финам)" style="font-size:12px;border-right:1px solid var(--border);padding-right:16px">Счёт: <b style="color:#fff;font-size:13px">${fmtF(accountEquity)}</b>${accountPnl != null ? ` <span style="color:${accountPnl >= 0 ? '#4c4' : '#e05'};font-size:11px">(${accountPnl >= 0 ? '+' : ''}${fmtF(accountPnl)})</span>` : ''}${accountFree != null ? ` &nbsp;<span title="Свободные средства" style="color:${accountFree < 0 ? '#e05' : 'var(--muted)'}">своб.: ${fmtF(accountFree)}</span>` : ''}</span>` : ''}
         <span>Опционы: <b>${fmtF(grandTotal)}</b></span>
-        <span>P&amp;L: <span class="${grandCls}" style="font-weight:700">${fmtF(grandPnl)}</span></span>
+        <span>P&amp;L сегодня: <span class="${grandCls}" style="font-weight:700">${fmtF(grandPnl)}</span></span>
+        <span>P&amp;L всего: <span class="${grandPnlAll >= 0 ? 'pnl-pos' : 'pnl-neg'}" style="font-weight:700">${fmtF(grandPnlAll)}</span></span>
         <span>Δ: <b>${grandDelta.toFixed(2)}</b></span>
         <span title="Дневной распад временной стоимости всего портфеля">Θ/день: <b style="color:${grandTheta < 0 ? '#e05' : '#4c4'}">${grandTheta.toFixed(1)} руб</b></span>
         <span style="color:#4a9eff">Внутр.: <b>${fmtF(grandIntrinsic)}</b></span>
@@ -1755,7 +1762,8 @@ async function renderPortfolio() {
             <th>Тек. цена</th>
             <th>Вход</th>
             <th>Сумма</th>
-            <th>P&amp;L</th>
+            <th>P&amp;L сегодня</th>
+            <th title="(Тек. цена − цена входа) × кол-во">P&amp;L всего</th>
             <th title="Позиционная дельта = Δ × qty">Δ</th>
             <th title="Позиционная тета = Θ × qty (руб/день)">Θ</th>
             <th title="Позиционная вега = ν × qty (руб/1% IV)">ν</th>
