@@ -1032,11 +1032,24 @@ function _niceStep(v) {
 
 window._portChartData = {};
 
-function showOptionChart(underlying) {
+let portChartRequest = 0;
+
+async function showOptionChart(underlying) {
   const positions = window._portChartData[underlying];
   if (!positions || !positions.length) return;
 
-  const F0 = positions[0].F;
+  const request = ++portChartRequest;
+  const { underlyingSecid, underlyingType, settleF, F } = positions[0];
+  const last = await fetchUnderlyingLast(underlyingSecid, underlyingType);
+  if (request !== portChartRequest || currentTab !== 'portfolio' ||
+      positions !== window._portChartData[underlying]) return;
+
+  const priceSource = last != null ? 'последняя сделка MOEX'
+    : settleF > 0 ? 'расчётная цена' : 'цена из портфеля';
+  renderOptionChart(underlying, positions, last ?? (settleF > 0 ? settleF : F), priceSource);
+}
+
+function renderOptionChart(underlying, positions, F0, priceSource) {
   const spread = Math.max(F0 * 0.22, ...positions.map(p => Math.abs(F0 - p.K) * 1.6));
   const xMin = F0 - spread, xMax = F0 + spread;
 
@@ -1124,7 +1137,9 @@ function showOptionChart(underlying) {
   // Hit area on top
   svg += `<rect x="${ml}" y="${mt}" width="${cw}" height="${ch}" fill="transparent" style="cursor:crosshair"/>`;
 
-  document.getElementById('opt-chart-title').textContent = 'P&L — ' + underlying;
+  const ticker = positions[0].underlyingSecid || underlying;
+  document.getElementById('opt-chart-title').textContent =
+    `P&L — ${underlying} · ${ticker} · ${priceSource}`;
   const svgEl = document.getElementById('opt-chart-svg');
   svgEl.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svgEl.innerHTML = svg;
@@ -1208,6 +1223,7 @@ function portChartUnhover() {
 }
 
 function closeOptionChart() {
+  ++portChartRequest;
   document.getElementById('opt-chart-modal').style.display = 'none';
 }
 
@@ -1501,42 +1517,62 @@ function renderVirtualPanel() {
   el.innerHTML = html;
 }
 
-/* ── GREEKS fetch (1 запрос на символ, считаем Black-76 локально) ── */
-const _greeksCache = {};
-async function fetchOptionGreeks(symbol) {
+async function fetchUnderlyingLast(secid, type) {
+  const market = { F: 'futures/markets/forts/boards/RFUD', S: 'stock/markets/shares/boards/TQBR' }[type];
+  if (!secid || !market) return null;
+  try {
+    const r = await fetch(`/iss/engines/${market}/securities/${encodeURIComponent(secid)}.json` +
+      '?iss.meta=off&iss.only=marketdata&marketdata.columns=LAST',
+      { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return null;
+    const { marketdata } = await r.json();
+    const last = Number(marketdata?.data?.[0]?.[marketdata.columns.indexOf('LAST')]);
+    return Number.isFinite(last) && last > 0 ? last : null;
+  } catch { return null; }
+}
+
+/* ── GREEKS fetch (считаем Black-76 локально) ── */
+async function fetchOptionGreeks(symbol, underlyingQuotes) {
   const base = symbol.replace(/@.*$/, '');
-  if (_greeksCache[base] !== undefined) return _greeksCache[base];
   try {
     const url = `/iss/engines/futures/markets/options/boards/ROPD/securities/${encodeURIComponent(base)}.json` +
-      `?iss.meta=off&securities.columns=SECID,ASSETCODE,OPTIONTYPE,STRIKE,LASTTRADEDATE,UNDERLYINGSETTLEPRICE,SETTLEPRICE_CLR` +
+      `?iss.meta=off&securities.columns=SECID,ASSETCODE,OPTIONTYPE,STRIKE,LASTTRADEDATE,UNDERLYINGASSET,UNDERLYINGTYPE,UNDERLYINGSETTLEPRICE,SETTLEPRICE_CLR` +
       `&marketdata.columns=SECID,LAST,SETTLEPRICE`;
-    const r = await fetch(url);
-    if (!r.ok) { _greeksCache[base] = null; return null; }
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) return null;
     const d = await r.json();
     const sc = d.securities?.columns || [], sd = d.securities?.data?.[0];
     const mc = d.marketdata?.columns || [], md = d.marketdata?.data?.[0];
-    if (!sd) { _greeksCache[base] = null; return null; }
+    if (!sd) return null;
     const sg = k => { const i = sc.indexOf(k); return i >= 0 ? sd[i] : null; };
     const mg = k => { const i = mc.indexOf(k); return i >= 0 ? (md?.[i] ?? null) : null; };
 
     const type     = sg('OPTIONTYPE');
     const K        = Number(sg('STRIKE'));
-    const F        = Number(sg('UNDERLYINGSETTLEPRICE'));
+    const settleF  = Number(sg('UNDERLYINGSETTLEPRICE'));
     const expStr   = sg('LASTTRADEDATE');
     const optPrice = mg('LAST') || mg('SETTLEPRICE') || Number(sg('SETTLEPRICE_CLR'));
-    if (!type || !K || !F || !expStr || !optPrice) { _greeksCache[base] = null; return null; }
+    if (!type || !K || !expStr || !optPrice) return null;
+
+    const underlyingSecid = sg('UNDERLYINGASSET');
+    const underlyingType = sg('UNDERLYINGTYPE');
+    const quoteKey = `${underlyingType}:${underlyingSecid}`;
+    if (!underlyingQuotes.has(quoteKey)) {
+      underlyingQuotes.set(quoteKey, fetchUnderlyingLast(underlyingSecid, underlyingType));
+    }
+    const F = await underlyingQuotes.get(quoteKey) ?? settleF;
 
     const T  = (new Date(expStr) - Date.now()) / (1000 * 86400 * 365);
     const iv = _impliedVol(optPrice, F, K, T, type);
-    if (!iv) { _greeksCache[base] = null; return null; }
+    if (!iv) return null;
 
     const g = _black76(F, K, T, iv, type);
     g.F = F; g.K = K; g.type = type; g.theoPx = optPrice; g.iv = iv; g.T = T;
     const ac = String(sg('ASSETCODE') || '').toUpperCase();
     g.assetCode = allAssets.find(a => a.asset_code.toUpperCase() === ac)?.asset_code || ac || null;
-    _greeksCache[base] = g;
+    Object.assign(g, { underlyingSecid, underlyingType, settleF });
     return g;
-  } catch { _greeksCache[base] = null; return null; }
+  } catch { return null; }
 }
 
 /* ── PORTFOLIO view ── */
@@ -1599,9 +1635,10 @@ async function renderPortfolio() {
   }
 
   const greeksMap = {};
+  const underlyingQuotes = new Map();
   await Promise.all(opts.map(async p => {
     const sym = p.symbol || p.securityCode || '';
-    const g = await fetchOptionGreeks(sym);
+    const g = await fetchOptionGreeks(sym, underlyingQuotes);
     if (g) greeksMap[sym] = g;
   }));
 
@@ -1665,7 +1702,8 @@ async function renderPortfolio() {
         const expDate = new Date(Date.now() + g.T * 365 * 86400 * 1000).toISOString().split('T')[0];
         const avgPx = avgPrice != null ? avgPrice / mult : curPrice / mult;
         const moexAssetCode = g.assetCode;
-        chartPosArr.push({qty, K: g.K, type: g.type, iv: g.iv, T: g.T, F: g.F, mult, curApiPx: curPrice / mult, avgPx, expDate, moexAssetCode});
+        chartPosArr.push({qty, K: g.K, type: g.type, iv: g.iv, T: g.T, F: g.F, mult, curApiPx: curPrice / mult, avgPx, expDate, moexAssetCode,
+          underlyingSecid: g.underlyingSecid, underlyingType: g.underlyingType, settleF: g.settleF});
       }
       const posDelta = g.delta != null ? g.delta * qty : null;
       const posTheta = g.theta != null ? g.theta * qty : null;
